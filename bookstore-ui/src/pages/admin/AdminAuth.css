@@ -1,0 +1,8 @@
+/* Admin auth pages styling */
+.admin-auth { display:flex; justify-content:center; align-items:center; padding:40px 16px; min-height:100vh; }
+.admin-card { width:100%; max-width:420px; background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:18px; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
+.admin-title { font-size:22px; font-weight:800; margin-bottom:6px; color:#111827; }
+.admin-sub { color:#6b7280; margin-bottom:12px; }
+.field { display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
+.row { display:flex; justify-content:space-between; align-items:center; margin:8px 0; }
+.link { color:#2563eb; background:none; border:none; cursor:pointer; }

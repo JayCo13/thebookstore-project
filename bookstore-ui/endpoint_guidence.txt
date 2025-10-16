@@ -1,0 +1,806 @@
+# Bookstore API Endpoint Guide
+
+## Base Information
+- **Base URL**: `http://localhost:8000`
+- **API Version**: v1
+- **API Prefix**: `/api/v1`
+- **Authentication**: Bearer Token (JWT)
+- **Content-Type**: `application/json`
+
+## Authentication
+All protected endpoints require a Bearer token in the Authorization header:
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+---
+
+## 1. GENERAL ENDPOINTS
+
+### 1.1 Root Endpoint
+- **URL**: `/`
+- **Method**: `GET`
+- **Authentication**: None
+- **Description**: Welcome message and API information
+
+**Response (200)**:
+```json
+{
+  "message": "Welcome to Bookstore API",
+  "version": "1.0.0",
+  "docs": "/docs",
+  "redoc": "/redoc"
+}
+```
+
+### 1.2 Health Check
+- **URL**: `/health`
+- **Method**: `GET`
+- **Authentication**: None
+- **Description**: API health status
+
+**Response (200)**:
+```json
+{
+  "status": "healthy",
+  "message": "Bookstore API is running"
+}
+```
+
+---
+
+## 2. AUTHENTICATION ENDPOINTS
+
+### 2.1 User Registration
+- **URL**: `/api/v1/auth/register`
+- **Method**: `POST`
+- **Authentication**: None
+- **Description**: Register a new user account
+
+**Request Body**:
+```json
+{
+  "first_name": "string",
+  "last_name": "string", 
+  "email": "user@example.com",
+  "password": "string (min 6 characters)"
+}
+```
+
+**Response (200)**:
+```json
+{
+  "message": "User registered successfully. Please check your email for confirmation."
+}
+```
+
+**Additional Logic**:
+- Sends welcome email to user
+- Password must be at least 6 characters
+- Email must be valid format
+
+### 2.2 User Login
+- **URL**: `/api/v1/auth/login`
+- **Method**: `POST`
+- **Authentication**: None
+- **Description**: Login user and get access token
+
+**Request Body**:
+```json
+{
+  "email": "user@example.com",
+  "password": "string"
+}
+```
+
+**Response (200)**:
+```json
+{
+  "access_token": "jwt_token_string",
+  "token_type": "bearer"
+}
+```
+
+**Additional Logic**:
+- Validates user credentials
+- Checks if account is active
+- Returns JWT token for authentication
+
+### 2.3 Admin Login
+- **URL**: `/api/v1/auth/admin/login`
+- **Method**: `POST`
+- **Authentication**: None
+- **Description**: Admin login endpoint
+
+**Request Body**:
+```json
+{
+  "email": "admin@example.com",
+  "password": "string"
+}
+```
+
+**Response (200)**:
+```json
+{
+  "access_token": "jwt_token_string",
+  "token_type": "bearer"
+}
+```
+
+**Additional Logic**:
+- Ensures admin user exists
+- Validates admin role
+- Creates admin user if not exists
+
+### 2.4 Forgot Password
+- **URL**: `/api/v1/auth/forgot-password`
+- **Method**: `POST`
+- **Authentication**: None
+- **Description**: Request password reset
+
+**Request Body**:
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response (200)**:
+```json
+{
+  "message": "If the email exists, a password reset link has been sent."
+}
+```
+
+**Additional Logic**:
+- Generates reset token
+- Sends password reset email
+- Doesn't reveal if email exists for security
+
+### 2.5 Reset Password
+- **URL**: `/api/v1/auth/reset-password`
+- **Method**: `POST`
+- **Authentication**: None
+- **Description**: Reset password using reset token
+
+**Request Body**:
+```json
+{
+  "token": "reset_token_string",
+  "new_password": "string (min 6 characters)"
+}
+```
+
+**Response (200)**:
+```json
+{
+  "message": "Password reset successfully"
+}
+```
+
+### 2.6 Get Current User
+- **URL**: `/api/v1/auth/me`
+- **Method**: `GET`
+- **Authentication**: Required (Bearer Token)
+- **Description**: Get current user information
+
+**Response (200)**:
+```json
+{
+  "user_id": 1,
+  "first_name": "string",
+  "last_name": "string",
+  "email": "user@example.com",
+  "role": {
+    "role_id": 1,
+    "role_name": "Customer"
+  },
+  "created_at": "2024-01-01T00:00:00",
+  "is_active": 1,
+  "google_id": null,
+  "profile_picture": null,
+  "auth_provider": "local"
+}
+```
+
+### 2.7 Logout
+- **URL**: `/api/v1/auth/logout`
+- **Method**: `POST`
+- **Authentication**: Required (Bearer Token)
+- **Description**: Logout user (client-side token disposal)
+
+**Response (200)**:
+```json
+{
+  "message": "Logged out successfully"
+}
+```
+
+### 2.8 Activate Account
+- **URL**: `/api/v1/auth/activate/{email}`
+- **Method**: `POST`
+- **Authentication**: None
+- **Description**: Activate user account
+
+**Path Parameters**:
+- `email`: User email address
+
+**Response (200)**:
+```json
+{
+  "message": "Account activated successfully"
+}
+```
+
+### 2.9 Initialize System
+- **URL**: `/api/v1/auth/init`
+- **Method**: `POST`
+- **Authentication**: None
+- **Description**: Initialize system with default roles and admin user
+
+**Response (200)**:
+```json
+{
+  "message": "System initialized successfully"
+}
+```
+
+### 2.10 Google OAuth Login
+- **URL**: `/api/v1/auth/google/login`
+- **Method**: `GET`
+- **Authentication**: None
+- **Description**: Get Google OAuth authorization URL
+
+**Response (200)**:
+```json
+{
+  "authorization_url": "https://accounts.google.com/oauth2/auth?..."
+}
+```
+
+### 2.11 Google OAuth Callback
+- **URL**: `/api/v1/auth/google/callback`
+- **Method**: `POST`
+- **Authentication**: None
+- **Description**: Handle Google OAuth callback
+
+**Request Body**:
+```json
+{
+  "code": "google_auth_code",
+  "state": "optional_state"
+}
+```
+
+**Response (200)**:
+```json
+{
+  "access_token": "jwt_token_string",
+  "token_type": "bearer"
+}
+```
+
+**Additional Logic**:
+- Authenticates with Google
+- Creates new user or links existing account
+- Sends welcome email for new users
+
+---
+
+## 3. BOOK ENDPOINTS
+
+### 3.1 Get Books
+- **URL**: `/api/v1/books/`
+- **Method**: `GET`
+- **Authentication**: Optional
+- **Description**: Get books with filtering and pagination
+
+**Query Parameters**:
+- `skip`: int (default: 0) - Number of records to skip
+- `limit`: int (default: 10, max: 100) - Number of records to return
+- `category_id`: int (optional) - Filter by category
+- `author_id`: int (optional) - Filter by author
+- `search`: string (optional) - Search in title and description
+
+**Response (200)**:
+```json
+[
+  {
+    "book_id": 1,
+    "title": "Book Title",
+    "isbn": "978-0123456789",
+    "description": "Book description",
+    "price": "19.99",
+    "stock_quantity": 10,
+    "publication_date": "2024-01-01",
+    "image_url": "/static/books/book_1.jpg",
+    "created_at": "2024-01-01T00:00:00",
+    "authors": [
+      {
+        "author_id": 1,
+        "name": "Author Name"
+      }
+    ],
+    "categories": [
+      {
+        "category_id": 1,
+        "name": "Fiction"
+      }
+    ]
+  }
+]
+```
+
+**Additional Logic**:
+- Results are cached for 5 minutes
+- Supports filtering by category, author, and search
+- Only returns active books
+
+### 3.2 Get Book by ID
+- **URL**: `/api/v1/books/{book_id}`
+- **Method**: `GET`
+- **Authentication**: Optional
+- **Description**: Get specific book details
+
+**Path Parameters**:
+- `book_id`: int - Book ID
+
+**Response (200)**: Same as single book object from Get Books
+
+**Additional Logic**:
+- Cached for 10 minutes
+- Returns 404 if book not found or inactive
+
+### 3.3 Create Book
+- **URL**: `/api/v1/books/`
+- **Method**: `POST`
+- **Authentication**: Required (Admin only)
+- **Description**: Create a new book
+
+**Request Body**:
+```json
+{
+  "title": "string",
+  "isbn": "string (optional)",
+  "description": "string (optional)",
+  "price": "decimal",
+  "stock_quantity": 0,
+  "publication_date": "2024-01-01 (optional)",
+  "author_ids": [1, 2],
+  "category_ids": [1, 2]
+}
+```
+
+**Response (200)**: Book object (same as Get Book)
+
+**Additional Logic**:
+- Admin authentication required
+- Invalidates book cache
+- Associates with authors and categories
+
+### 3.4 Update Book
+- **URL**: `/api/v1/books/{book_id}`
+- **Method**: `PUT`
+- **Authentication**: Required (Admin only)
+- **Description**: Update book details
+
+**Path Parameters**:
+- `book_id`: int - Book ID
+
+**Request Body**: Same as Create Book (all fields optional)
+
+**Response (200)**: Updated book object
+
+**Additional Logic**:
+- Admin authentication required
+- Invalidates related caches
+- Updates associations if provided
+
+### 3.5 Delete Book
+- **URL**: `/api/v1/books/{book_id}`
+- **Method**: `DELETE`
+- **Authentication**: Required (Admin only)
+- **Description**: Soft delete a book
+
+**Path Parameters**:
+- `book_id`: int - Book ID
+
+**Response (200)**:
+```json
+{
+  "message": "Book deleted successfully"
+}
+```
+
+**Additional Logic**:
+- Soft delete (sets is_active = False)
+- Invalidates caches
+
+### 3.6 Upload Book Image
+- **URL**: `/api/v1/books/{book_id}/image`
+- **Method**: `POST`
+- **Authentication**: Required (Admin only)
+- **Description**: Upload book cover image
+
+**Path Parameters**:
+- `book_id`: int - Book ID
+
+**Request**: Multipart form data with image file
+
+**Response (200)**:
+```json
+{
+  "message": "Book image uploaded successfully"
+}
+```
+
+**Additional Logic**:
+- Deletes old image if exists
+- Optimizes and saves new image
+- Updates book with image URL
+
+### 3.7 Get Categories
+- **URL**: `/api/v1/books/categories/`
+- **Method**: `GET`
+- **Authentication**: None
+- **Description**: Get all book categories
+
+**Response (200)**:
+```json
+[
+  {
+    "category_id": 1,
+    "name": "Fiction"
+  }
+]
+```
+
+**Additional Logic**:
+- Cached for 30 minutes
+
+### 3.8 Get Authors
+- **URL**: `/api/v1/books/authors/`
+- **Method**: `GET`
+- **Authentication**: None
+- **Description**: Get all authors
+
+**Response (200)**:
+```json
+[
+  {
+    "author_id": 1,
+    "name": "Author Name"
+  }
+]
+```
+
+**Additional Logic**:
+- Cached for 30 minutes
+
+### 3.9 Get Popular Books
+- **URL**: `/api/v1/books/popular`
+- **Method**: `GET`
+- **Authentication**: None
+- **Description**: Get popular books based on order count
+
+**Query Parameters**:
+- `limit`: int (default: 10, max: 50) - Number of books to return
+
+**Response (200)**: Array of book objects (same as Get Books)
+
+**Additional Logic**:
+- Cached for 1 hour
+- Ordered by number of orders
+
+---
+
+## 4. ORDER ENDPOINTS
+
+### 4.1 Create Order
+- **URL**: `/api/v1/orders/`
+- **Method**: `POST`
+- **Authentication**: Required
+- **Description**: Create a new order
+
+**Request Body**:
+```json
+{
+  "items": [
+    {
+      "book_id": 1,
+      "quantity": 2
+    }
+  ],
+  "shipping_address": "123 Main St, City, State 12345"
+}
+```
+
+**Response (200)**:
+```json
+{
+  "order_id": 1,
+  "user_id": 1,
+  "order_date": "2024-01-01T00:00:00",
+  "total_amount": "39.98",
+  "status": "pending",
+  "order_items": [
+    {
+      "order_item_id": 1,
+      "book_id": 1,
+      "quantity": 2,
+      "price_at_purchase": "19.99",
+      "book": { /* book object */ }
+    }
+  ]
+}
+```
+
+**Additional Logic**:
+- Validates book availability and stock
+- Calculates total amount
+- Updates book stock quantities
+- Sends order confirmation email
+- Invalidates user order cache
+
+### 4.2 Get User Orders
+- **URL**: `/api/v1/orders/`
+- **Method**: `GET`
+- **Authentication**: Required
+- **Description**: Get current user's orders
+
+**Query Parameters**:
+- `skip`: int (default: 0) - Number of records to skip
+- `limit`: int (default: 10, max: 100) - Number of records to return
+- `status_filter`: string (optional) - Filter by order status
+
+**Response (200)**: Array of order objects
+
+**Additional Logic**:
+- Cached for 5 minutes
+- Returns only user's own orders
+
+### 4.3 Get All Orders (Admin)
+- **URL**: `/api/v1/orders/all`
+- **Method**: `GET`
+- **Authentication**: Required (Admin only)
+- **Description**: Get all orders (admin only)
+
+**Query Parameters**:
+- `skip`: int (default: 0) - Number of records to skip
+- `limit`: int (default: 10, max: 100) - Number of records to return
+- `status_filter`: string (optional) - Filter by order status
+- `user_id`: int (optional) - Filter by user ID
+
+**Response (200)**: Array of order objects
+
+### 4.4 Get Order by ID
+- **URL**: `/api/v1/orders/{order_id}`
+- **Method**: `GET`
+- **Authentication**: Required
+- **Description**: Get specific order details
+
+**Path Parameters**:
+- `order_id`: int - Order ID
+
+**Response (200)**: Order object
+
+**Additional Logic**:
+- Users can only access their own orders
+- Admins can access any order
+
+### 4.5 Update Order Status
+- **URL**: `/api/v1/orders/{order_id}/status`
+- **Method**: `PUT`
+- **Authentication**: Required (Admin only)
+- **Description**: Update order status
+
+**Path Parameters**:
+- `order_id`: int - Order ID
+
+**Request Body**:
+```json
+{
+  "status": "shipped"
+}
+```
+
+**Response (200)**: Updated order object
+
+**Additional Logic**:
+- Admin only
+- Invalidates user order cache
+
+### 4.6 Cancel Order
+- **URL**: `/api/v1/orders/{order_id}`
+- **Method**: `DELETE`
+- **Authentication**: Required
+- **Description**: Cancel an order (only if pending)
+
+**Path Parameters**:
+- `order_id`: int - Order ID
+
+**Response (200)**:
+```json
+{
+  "message": "Order cancelled successfully"
+}
+```
+
+**Additional Logic**:
+- Only pending orders can be cancelled
+- Restores book stock quantities
+- Users can cancel their own orders, admins can cancel any
+
+---
+
+## 5. WISHLIST ENDPOINTS
+
+### 5.1 Get Wishlist
+- **URL**: `/api/v1/orders/wishlist/`
+- **Method**: `GET`
+- **Authentication**: Required
+- **Description**: Get user's wishlist
+
+**Response (200)**:
+```json
+[
+  {
+    "book": { /* book object */ },
+    "added_at": "2024-01-01T00:00:00"
+  }
+]
+```
+
+**Additional Logic**:
+- Cached for 10 minutes
+- Returns only user's wishlist items
+
+### 5.2 Add to Wishlist
+- **URL**: `/api/v1/orders/wishlist/`
+- **Method**: `POST`
+- **Authentication**: Required
+- **Description**: Add book to wishlist
+
+**Request Body**:
+```json
+{
+  "book_id": 1
+}
+```
+
+**Response (200)**:
+```json
+{
+  "message": "Book added to wishlist"
+}
+```
+
+**Additional Logic**:
+- Validates book exists and is active
+- Prevents duplicate entries
+- Invalidates wishlist cache
+
+### 5.3 Remove from Wishlist
+- **URL**: `/api/v1/orders/wishlist/{book_id}`
+- **Method**: `DELETE`
+- **Authentication**: Required
+- **Description**: Remove book from wishlist
+
+**Path Parameters**:
+- `book_id`: int - Book ID
+
+**Response (200)**:
+```json
+{
+  "message": "Book removed from wishlist"
+}
+```
+
+**Additional Logic**:
+- Invalidates wishlist cache
+
+---
+
+## 6. STATIC FILES
+
+### 6.1 Static Images
+- **URL**: `/static/{file_path}`
+- **Method**: `GET`
+- **Authentication**: None
+- **Description**: Serve static image files
+
+**Additional Logic**:
+- Serves optimized images from upload directory
+- Supports book cover images
+
+---
+
+## 7. ERROR RESPONSES
+
+### Common Error Formats
+
+**400 Bad Request**:
+```json
+{
+  "detail": "Error message describing the issue"
+}
+```
+
+**401 Unauthorized**:
+```json
+{
+  "detail": "Could not validate credentials"
+}
+```
+
+**403 Forbidden**:
+```json
+{
+  "detail": "Access denied"
+}
+```
+
+**404 Not Found**:
+```json
+{
+  "detail": "Resource not found"
+}
+```
+
+**422 Validation Error**:
+```json
+{
+  "detail": [
+    {
+      "loc": ["field_name"],
+      "msg": "Validation error message",
+      "type": "error_type"
+    }
+  ]
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "detail": "Internal server error occurred"
+}
+```
+
+---
+
+## 8. CACHING STRATEGY
+
+The API implements Redis caching for improved performance:
+
+- **Books List**: 5 minutes
+- **Book Details**: 10 minutes
+- **Categories**: 30 minutes
+- **Authors**: 30 minutes
+- **Popular Books**: 1 hour
+- **User Orders**: 5 minutes
+- **User Wishlist**: 10 minutes
+
+Cache is automatically invalidated when related data is modified.
+
+---
+
+## 9. AUTHENTICATION NOTES
+
+- JWT tokens expire based on `access_token_expire_minutes` setting
+- Tokens should be included in the Authorization header as `Bearer <token>`
+- Admin endpoints require users with "Admin" role
+- Some endpoints are accessible to both customers and admins
+- Google OAuth is supported for user authentication
+
+---
+
+## 10. BUSINESS LOGIC NOTES
+
+- **Stock Management**: Order creation automatically decreases book stock
+- **Email Notifications**: Sent for registration, password reset, and order confirmation
+- **Image Optimization**: Book images are automatically optimized and converted
+- **Soft Deletes**: Books are soft-deleted (marked inactive) rather than permanently removed
+- **Role-based Access**: Different endpoints require different user roles
+- **Order Status Flow**: Orders start as "pending" and can be updated by admins

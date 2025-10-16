@@ -1,0 +1,1 @@
+export { useWishlist } from '../contexts/WishlistContext.jsx';

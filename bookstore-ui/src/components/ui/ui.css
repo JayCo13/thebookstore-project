@@ -1,0 +1,44 @@
+/* Basic UI kit for admin pages */
+
+.ui-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;
+}
+.ui-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.12); }
+.ui-btn:active { transform: translateY(0); box-shadow: none; }
+
+.ui-btn-primary { background: #111; color: #fff; }
+.ui-btn-secondary { background: #e9ecef; color: #111; }
+.ui-btn-success { background: #28a745; color: #fff; }
+.ui-btn-outline { background: #fff; border: 1px solid #dee2e6; color: #111; }
+.ui-btn-danger { background: #dc3545; color: #fff; }
+.ui-btn-icon { background: transparent; color: #6c757d; padding: 0.25rem 0.5rem; }
+
+.ui-btn-small { padding: 0.4rem 0.75rem; font-size: 0.85rem; }
+.ui-btn-medium { padding: 0.6rem 1rem; }
+.ui-btn-large { padding: 0.8rem 1.25rem; font-size: 1rem; }
+
+.ui-input {
+  width: 100%;
+  padding: 0.65rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid #dee2e6;
+  outline: none;
+}
+.ui-input:focus { border-color: #111; box-shadow: 0 0 0 3px rgba(17,17,17,0.08); }
+
+/* Modal */
+.ui-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.3);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.ui-modal { background: #fff; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); width: 100%; max-width: 720px; }
+.ui-modal-small { max-width: 420px; }
+.ui-modal-medium { max-width: 720px; }
+.ui-modal-large { max-width: 960px; }
+.ui-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid #f1f3f5; }
+.ui-modal-body { padding: 1.25rem; }

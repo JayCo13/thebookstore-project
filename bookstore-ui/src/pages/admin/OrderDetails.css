@@ -1,0 +1,45 @@
+.order-details { padding: 20px; }
+.od-header { display:grid; grid-template-columns: 1fr auto; align-items:center; gap:10px; margin-bottom:16px; }
+.od-header h1 { font-size:24px; font-weight:700; }
+.tags { display:flex; gap:8px; }
+.tag { padding:4px 10px; border-radius:999px; font-weight:600; font-size:13px; }
+.tag.paid { background:#DCFCE7; color:#166534; }
+.tag.unfulfilled { background:#FEF3C7; color:#B45309; }
+.meta { color:#6b7280; }
+.head-actions { display:flex; justify-content:flex-end; }
+
+.od-grid { display:grid; grid-template-columns: 2fr 1fr; gap:16px; }
+.card { background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:14px; }
+.card-header { font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+.dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+.dot.yellow { background:#F59E0B; }
+.title { font-weight:700; }
+.count { color:#6b7280; }
+
+.item { display:grid; grid-template-columns: 1fr 140px 60px 120px; gap:12px; padding:10px 0; border-top:1px solid #f1f5f9; }
+.item:first-of-type { border-top:none; }
+.item .name { font-weight:600; color:#111827; }
+.item .attrs { color:#6b7280; font-size:13px; }
+.sale { color:#ef4444; font-weight:700; margin-right:8px; }
+.strike { color:#9ca3af; text-decoration: line-through; }
+.qty { font-weight:600; }
+.line { font-weight:700; }
+
+.delivery-row { display:flex; justify-content:space-between; align-items:center; }
+.carrier { font-weight:700; }
+.desc { color:#6b7280; }
+.fee { text-align:right; font-weight:700; }
+
+.summary-row { display:flex; justify-content:space-between; color:#374151; padding:6px 0; }
+.summary-total { display:flex; justify-content:space-between; font-weight:700; padding-top:8px; border-top:1px solid #f1f5f9; }
+
+.customer { display:flex; align-items:center; gap:10px; }
+.avatar { width:40px; height:40px; border-radius:50%; background:#e5e7eb; }
+.info .name { font-weight:700; }
+.info .orders, .info .contact { color:#6b7280; font-size:13px; }
+
+.address { color:#374151; line-height:1.6; }
+
+@media (max-width: 1024px) {
+  .od-grid { grid-template-columns: 1fr; }
+}

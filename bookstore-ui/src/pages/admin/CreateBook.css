@@ -1,0 +1,43 @@
+.create-book { background:#fff; border-radius:12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); padding: 1.25rem; }
+.create-book .title { margin:0 0 12px; font-size:1.25rem; font-weight:700; color:#111; }
+.create-book .grid { display:grid; grid-template-columns: 1.1fr 1.4fr; gap:16px; }
+
+/* Left column */
+.left-col .image-card { background:#fff; border:1px dashed #e9ecef; border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:12px; }
+.placeholder { display:flex; align-items:center; justify-content:center; color:#6c757d; font-size:12px; }
+.main-image { height:220px; background:#f8f9fa; border-radius:12px; }
+.thumbs { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.thumb { height:120px; background:#f8f9fa; border-radius:12px; }
+
+.subsection { background:#fff; border:1px solid #eef0f2; border-radius:12px; padding:12px; margin-top:12px; }
+.subsection h3 { margin:0 0 8px; font-size:1rem; font-weight:600; color:#111; }
+.subsection p { margin:0; color:#6c757d; font-size:0.875rem; }
+.subsection .row { display:flex; align-items:center; gap:12px; margin-top:8px; }
+.subsection .row label { width:200px; color:#495057; font-size:0.875rem; }
+.subsection .row select { flex:1; padding:10px; border:1px solid #dee2e6; border-radius:8px; background:#fff; }
+.subsection textarea { width:100%; border:1px solid #dee2e6; border-radius:8px; padding:10px; font-size:0.95rem; }
+
+/* Right column */
+.right-col { background:#fff; border-radius:12px; }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.field { display:flex; flex-direction:column; gap:6px; }
+.field.full { grid-column: 1 / -1; }
+.field label { font-size:0.875rem; color:#495057; }
+.inline { display:flex; align-items:center; gap:8px; }
+.inline .sep { color:#6c757d; }
+.right-col select { padding:10px; border:1px solid #dee2e6; border-radius:8px; background:#fff; }
+
+.payment-methods { display:flex; gap:12px; margin-top:12px; }
+.pm { width:34px; height:22px; border-radius:6px; display:inline-block; }
+.pm.pm-red { background:#e74c3c; }
+.pm.pm-yellow { background:#f1c40f; }
+.pm.pm-gray { background:#bdc3c7; }
+.pm.pm-black { background:#111; }
+.pm.pm-blue { background:#3498db; }
+
+.actions { display:flex; justify-content:space-between; gap:12px; margin-top:14px; }
+
+/* Responsive */
+@media (max-width: 960px){
+  .create-book .grid { grid-template-columns: 1fr; }
+}

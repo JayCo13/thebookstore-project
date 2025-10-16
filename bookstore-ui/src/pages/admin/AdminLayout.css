@@ -1,0 +1,19 @@
+.admin-shell { background: #f5f6f8; min-height: 100vh; }
+.admin-topbar {
+  height: 72px; background: #fff; border-bottom: 1px solid #eef0f2;
+  display: flex; align-items: center; justify-content: space-between; padding: 0 20px; position: sticky; top:0; z-index: 50;
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+.brand img { width: 55px; height: 55px; border-radius: 8px; }
+.top-nav { display: flex; gap: 14px; background: #f2f3f5; padding: 6px 8px; border-radius: 20px; }
+.top-nav a { padding: 8px 14px; border-radius: 16px; color: #222; text-decoration: none; font-weight: 600; }
+.top-nav a.active, .top-nav a:hover { background: #111; color: #fff; }
+.actions { display: flex; align-items: center; gap: 12px; }
+.icon-btn {  width: 34px; height: 34px; border-radius: 10px; cursor: pointer; }
+.icon-btn:hover { background: #e9ecef; }
+.profile { display: flex; align-items: center; gap: 10px; padding-left: 10px; border-left: 1px solid #c9c9c9; }
+.avatar { width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg,#111 0%, #333 100%); color: #fff; display:flex; align-items:center; justify-content:center; font-weight:700; }
+.meta { display: flex; flex-direction: column; line-height: 1; }
+.meta .name { font-weight: 700; }
+.meta .role { font-size: 14px; color: #6c757d; font-weight: 600;}
+.admin-main { padding: 24px; max-width: 1440px; margin: 0 auto; }
