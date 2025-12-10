@@ -1,12 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { formatPrice, parsePrice } from '../utils/currency';
 
 const CartContext = createContext(null);
-
-const parsePrice = (priceStr) => {
-  if (priceStr == null) return 0;
-  const num = parseFloat(String(priceStr).replace(/[^0-9.]/g, ''));
-  return Number.isNaN(num) ? 0 : num;
-};
 
 export const CartProvider = ({ children }) => {
   const [cartItems, setCartItems] = useState(() => {
@@ -28,20 +23,36 @@ export const CartProvider = ({ children }) => {
 
   const addToCart = (book) => {
     if (!book) return;
+    const quantityToAdd = book.quantity || 1;
     setCartItems((prev) => {
       const idx = prev.findIndex((it) => it.id === book.id);
       if (idx !== -1) {
         const next = [...prev];
-        next[idx] = { ...next[idx], quantity: (next[idx].quantity || 1) + 1 };
+        next[idx] = { ...next[idx], quantity: (next[idx].quantity || 0) + quantityToAdd };
         return next;
       }
+
+      // Determine the actual price to use (discounted if available, otherwise regular price)
+      const actualPrice = book.discounted_price != null ? book.discounted_price : book.price;
+
+      // Ensure price is properly formatted for display
+      let formattedPrice = actualPrice;
+      if (typeof actualPrice === 'number' || (typeof actualPrice === 'string' && !actualPrice.includes('₫'))) {
+        formattedPrice = formatPrice(actualPrice);
+      }
+
+      // Store both original and discounted prices for display
       const item = {
         id: book.id,
         title: book.title,
         author: book.author,
         cover: book.cover,
-        price: book.price, // keep original string for display
-        quantity: 1,
+        price: formattedPrice, // store formatted actual price for display
+        originalPrice: book.price, // store original price for comparison
+        discountedPrice: book.discounted_price, // store discounted price if available
+        isFreeShip: book.isFreeShip || book.is_free_ship || false, // preserve free shipping flag
+        stationery_id: book.stationery_id, // for stationery items
+        quantity: quantityToAdd,
       };
       return [...prev, item];
     });
@@ -63,7 +74,14 @@ export const CartProvider = ({ children }) => {
   }, [cartItems]);
 
   const getCartTotal = useMemo(() => {
-    return () => cartItems.reduce((sum, it) => sum + parsePrice(it.price) * (it.quantity || 1), 0).toFixed(2);
+    return () => {
+      const total = cartItems.reduce((sum, it) => sum + parsePrice(it.price) * (it.quantity || 1), 0);
+      return formatPrice(total);
+    };
+  }, [cartItems]);
+
+  const getCartTotalRaw = useMemo(() => {
+    return () => cartItems.reduce((sum, it) => sum + parsePrice(it.price) * (it.quantity || 1), 0);
   }, [cartItems]);
 
   const value = {
@@ -73,6 +91,7 @@ export const CartProvider = ({ children }) => {
     updateQuantity,
     getCartCount,
     getCartTotal,
+    getCartTotalRaw,
     clearCart: () => setCartItems([]),
   };
 

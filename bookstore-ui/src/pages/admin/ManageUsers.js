@@ -7,6 +7,8 @@ const ManageUsers = () => {
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -30,13 +32,18 @@ const ManageUsers = () => {
   }, []);
 
   useEffect(() => {
-    const filtered = users.filter(user =>
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.role.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const term = searchTerm.trim().toLowerCase();
+    const filtered = users.filter(user => {
+      const matchesTerm = !term ||
+        user.name.toLowerCase().includes(term) ||
+        user.email.toLowerCase().includes(term) ||
+        user.role.toLowerCase().includes(term);
+      const matchesRole = roleFilter === 'All' || user.role === roleFilter;
+      const matchesStatus = statusFilter === 'All' || user.status === statusFilter;
+      return matchesTerm && matchesRole && matchesStatus;
+    });
     setFilteredUsers(filtered);
-  }, [searchTerm, users]);
+  }, [searchTerm, users, roleFilter, statusFilter]);
 
   const handleViewUser = (user) => {
     setSelectedUser(user);
@@ -100,6 +107,25 @@ const ManageUsers = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
           />
+        </div>
+        <div className="filter-section" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div className="filter-item">
+            <label style={{ fontSize: 12, color: '#6c757d' }}>Role</label>
+            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="ui-select">
+              <option>All</option>
+              <option>Admin</option>
+              <option>Moderator</option>
+              <option>Customer</option>
+            </select>
+          </div>
+          <div className="filter-item">
+            <label style={{ fontSize: 12, color: '#6c757d' }}>Status</label>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="ui-select">
+              <option>All</option>
+              <option>Active</option>
+              <option>Inactive</option>
+            </select>
+          </div>
         </div>
         <div className="stats-summary">
           <span className="stat-item">Total: {users.length}</span>
@@ -188,7 +214,7 @@ const ManageUsers = () => {
         isOpen={showUserModal}
         onClose={() => setShowUserModal(false)}
         title="User Details"
-        size="medium"
+        size="large"
       >
         {selectedUser && (
           <div className="user-details">
@@ -205,20 +231,26 @@ const ManageUsers = () => {
               </div>
             </div>
             <div className="user-detail-stats">
-              <div className="detail-stat">
-                <label>Status:</label>
-                <span className={`status-badge ${getStatusColor(selectedUser.status)}`}>
-                  {selectedUser.status}
-                </span>
-              </div>
-              <div className="detail-stat">
-                <label>Join Date:</label>
-                <span>{new Date(selectedUser.joinDate).toLocaleDateString()}</span>
-              </div>
-              <div className="detail-stat">
-                <label>Total Orders:</label>
-                <span>{selectedUser.orders}</span>
-              </div>
+              {typeof selectedUser.status !== 'undefined' && (
+                <div className="detail-stat">
+                  <label>Status:</label>
+                  <span className={`status-badge ${getStatusColor(selectedUser.status)}`}>
+                    {selectedUser.status}
+                  </span>
+                </div>
+              )}
+              {selectedUser.joinDate && (
+                <div className="detail-stat">
+                  <label>Join Date:</label>
+                  <span>{new Date(selectedUser.joinDate).toLocaleDateString()}</span>
+                </div>
+              )}
+              {typeof selectedUser.orders !== 'undefined' && (
+                <div className="detail-stat">
+                  <label>Total Orders:</label>
+                  <span>{selectedUser.orders}</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -235,11 +267,11 @@ const ManageUsers = () => {
           <div className="delete-confirmation">
             <p>Are you sure you want to delete user <strong>{userToDelete.name}</strong>?</p>
             <p className="warning-text">This action cannot be undone.</p>
-            <div className="modal-actions">
-              <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
+            <div className="modal-actions" style={{ display:'flex', justifyContent:'center', gap:'12px' }}>
+              <Button size="large" variant="secondary" onClick={() => setShowDeleteModal(false)}>
                 Cancel
               </Button>
-              <Button variant="danger" onClick={confirmDelete}>
+              <Button size="large" variant="danger" onClick={confirmDelete}>
                 Delete User
               </Button>
             </div>

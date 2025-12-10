@@ -20,14 +20,14 @@ export default function CartPage() {
 
   return (
     <div className="container mx-auto px-4 pt-28 pb-16">
-      <h1 className="text-3xl font-bold mb-8 text-gray-900">Your Cart</h1>
-      
+      <h1 className="text-3xl font-bold mb-8 text-gray-900">Giỏ hàng của bạn</h1>
+
       {cartItems.length === 0 ? (
         <div className="text-center py-16">
-          <h2 className="text-2xl font-medium text-gray-700 mb-4">Your cart is empty</h2>
-          <p className="text-gray-500 mb-8">Looks like you haven't added any books to your cart yet.</p>
+          <h2 className="text-2xl font-medium text-gray-700 mb-4">Giỏ hàng của bạn đang trống</h2>
+          <p className="text-gray-500 mb-8">Hiện tại bạn chưa thêm bất kỳ sách nào vào giỏ hàng.</p>
           <Link href="/" className="bg-[#008080] text-white px-6 py-3 rounded-md hover:bg-[#006666] transition-colors">
-            Continue Shopping
+            Tiếp tục mua sắm
           </Link>
         </div>
       ) : (
@@ -38,10 +38,10 @@ export default function CartPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left pb-4">Product</th>
-                      <th className="text-center pb-4">Quantity</th>
-                      <th className="text-right pb-4">Price</th>
-                      <th className="text-right pb-4">Actions</th>
+                      <th className="text-left pb-4">Sản phẩm</th>
+                      <th className="text-center pb-4">Số lượng</th>
+                      <th className="text-right pb-4">Giá</th>
+                      <th className="text-right pb-4">Hành động</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -50,8 +50,8 @@ export default function CartPage() {
                         <td className="py-4">
                           <div className="flex items-center">
                             <div className="h-24 w-16 relative flex-shrink-0">
-                              <Image 
-                                src={item.cover} 
+                              <Image
+                                src={item.cover}
                                 alt={item.title}
                                 fill
                                 className="object-cover rounded"
@@ -66,7 +66,7 @@ export default function CartPage() {
                         </td>
                         <td className="py-4">
                           <div className="flex items-center justify-center">
-                            <button 
+                            <button
                               className="p-1 rounded-full hover:bg-gray-100"
                               onClick={() => updateQuantity(item.id, item.quantity - 1)}
                               aria-label="Decrease quantity"
@@ -74,7 +74,7 @@ export default function CartPage() {
                               -
                             </button>
                             <span className="mx-3 w-8 text-center">{item.quantity}</span>
-                            <button 
+                            <button
                               className="p-1 rounded-full hover:bg-gray-100"
                               onClick={() => updateQuantity(item.id, item.quantity + 1)}
                               aria-label="Increase quantity"
@@ -87,7 +87,7 @@ export default function CartPage() {
                           <span className="font-medium">{item.price}</span>
                         </td>
                         <td className="py-4 text-right">
-                          <button 
+                          <button
                             className="text-red-500 hover:text-red-700 p-2"
                             onClick={() => removeFromCart(item.id)}
                             aria-label="Remove item"
@@ -104,38 +104,38 @@ export default function CartPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-md p-6 sticky top-24">
-              <h2 className="text-xl font-bold mb-6 pb-4 border-b">Order Summary</h2>
-              
+              <h2 className="text-xl font-bold mb-6 pb-4 border-b">Tóm tắt đơn hàng</h2>
+
               <div className="space-y-4 mb-6">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Subtotal</span>
-                  <span className="font-medium">${getCartTotal()}</span>
+                  <span className="text-gray-600">Tạm Tính</span>
+                  <span className="font-medium">{getCartTotal()}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Shipping</span>
-                  <span className="font-medium">Free</span>
+                  <span className="text-gray-600">Phí Ship</span>
+                  <span className="font-medium">Chưa tính</span>
                 </div>
                 <div className="flex justify-between pt-4 border-t">
-                  <span className="text-lg font-bold">Total</span>
-                  <span className="text-lg font-bold text-[#008080]">${getCartTotal()}</span>
+                  <span className="text-lg font-bold">Tổng tạm thanh toán</span>
+                  <span className="text-lg font-bold text-[#008080]">{getCartTotal()}</span>
                 </div>
               </div>
-              
-              <Link 
-                href="/checkout" 
+
+              <Link
+                href="/checkout"
                 className="block w-full text-center bg-[#008080] text-white py-3 rounded-md hover:bg-[#006666] transition-colors font-medium"
               >
-                Proceed to Checkout
+                Thanh toán ngay
               </Link>
-              
-              <Link 
-                href="/" 
+
+              <Link
+                href="/"
                 className="block w-full text-center border border-gray-300 text-gray-700 py-3 rounded-md hover:bg-gray-50 transition-colors mt-4 font-medium"
               >
-                Continue Shopping
+                Tiếp tục mua sắm
               </Link>
             </div>
           </div>

@@ -1,118 +1,48 @@
-import Image from "../../compat/Image";
 import Link from "../../compat/Link";
 import { useEffect, useState } from "react";
 import BookCard from './BookCard';
+import BookDetailsModal from '../../../../components/BookDetailsModal';
 import { useCart } from '../../../../hooks/useCart';
 import { useWishlist } from '../../../../hooks/useWishlist';
 import { useToast } from '../../../../contexts/ToastContext.jsx';
+import { getPopularBooks, getBookCoverUrl, getBookReviews } from '../../../../service/api';
+import { formatPrice } from '../../../../utils/currency';
 
-// Local placeholders
-const showClickToast = (_e, _msg) => {};
+// Helper function to format book data from API
+const formatBookData = (book) => {
+  const basePrice = Number(book.price ?? 0);
+  const pct = book.discount_percentage != null ? Number(book.discount_percentage) : null;
+  const amt = book.discount_amount != null ? Number(book.discount_amount) : null;
+  const discountedCalc = book.discounted_price != null
+    ? Number(book.discounted_price)
+    : (pct != null
+      ? Math.max(0, Math.round(basePrice - (basePrice * pct) / 100))
+      : (amt != null ? Math.max(0, Math.round(basePrice - amt)) : null));
+  return {
+    id: book.book_id,
+    title: book.title,
+    author: book.authors && book.authors.length > 0 ? book.authors[0].name : 'Unknown Author',
+    stock_quantity: book.stock_quantity,
+    originalPrice: formatPrice(basePrice),
+    discountedPrice: discountedCalc != null ? formatPrice(discountedCalc) : null,
+    price: discountedCalc != null ? formatPrice(discountedCalc) : formatPrice(basePrice),
+    cover: getBookCoverUrl(book.image_url),
+    images: [
+      book.image_url ? getBookCoverUrl(book.image_url) : null,
+      book.image2_url ? getBookCoverUrl(book.image2_url) : null,
+      book.image3_url ? getBookCoverUrl(book.image3_url) : null,
+    ].filter(Boolean),
+    tag: book.is_best_seller ? "Bán chạy" : book.is_new ? "Mới ra mắt" : (discountedCalc != null ? "Giảm giá" : undefined),
+    isFreeShip: !!book.is_free_ship,
+    description: book.description,
+    pages: book.pages,
+    publishDate: book.publication_date,
+    isbn: book.isbn,
+    genre: book.categories && book.categories.length > 0 ? book.categories[0].name : undefined,
+    category: book.categories && book.categories.length > 0 ? book.categories[0].name : undefined
+  };
+};
 
-// Copied-and-aligned layout with FeaturedBooks: Modal component
-function BookDetailsModal({ book, isOpen, onClose, addToCart, addToWishlist }) {
-  const { showToast } = useToast();
-  if (!isOpen || !book) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-fadeIn" onClick={onClose}>
-      <div
-        className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="relative">
-          {/* Close button */}
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 z-10 p-2 bg-white/80 rounded-full hover:bg-[#008080] hover:text-white transition-colors"
-            aria-label="Close"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-
-          <div className="flex flex-col md:flex-row">
-            {/* Book cover */}
-            <div className="md:w-1/3 p-6 flex items-center justify-center">
-              <div className="relative w-full aspect-[2/3] rounded-lg overflow-hidden shadow-lg">
-                <Image src={book.cover} alt={book.title} fill className="object-cover" sizes="(max-width: 768px) 80vw, 33vw" />
-                {book.category && (
-                  <div className="absolute top-3 left-3 bg-[#008080] text-white text-xs font-medium px-2 py-1 rounded">
-                    {book.category}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Book details */}
-            <div className="md:w-2/3 p-6">
-              <h2 className="text-2xl md:text-3xl font-bold text-[#2D2D2D]">{book.title}</h2>
-              {book.author && <p className="text-lg text-gray-600 mt-1">{book.author}</p>}
-              <div className="mt-4 flex items-center">
-                <span className="text-xl font-bold text-[#008080]">{book.price}</span>
-                {book.category && (
-                  <span className="ml-3 px-2 py-1 bg-[#008080]/10 text-[#008080] text-sm rounded">{book.category}</span>
-                )}
-              </div>
-
-              {book.description && (
-                <div className="mt-6">
-                  <h3 className="text-lg font-medium text-[#2D2D2D]">About this book</h3>
-                  <p className="mt-2 text-gray-600 leading-relaxed">{book.description}</p>
-                </div>
-              )}
-
-              {(book.pages || book.publishDate || book.isbn) && (
-                <div className="mt-6 grid grid-cols-2 gap-4">
-                  {book.pages && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500">Pages</h4>
-                      <p className="text-[#2D2D2D]">{book.pages}</p>
-                    </div>
-                  )}
-                  {book.publishDate && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500">Published</h4>
-                      <p className="text-[#2D2D2D]">{book.publishDate}</p>
-                    </div>
-                  )}
-                  {book.isbn && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500">ISBN</h4>
-                      <p className="text-[#2D2D2D]">{book.isbn}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="mt-8 flex space-x-4">
-                <button
-                  className="px-6 py-2 bg-[#008080] text-white rounded-md hover:bg-[#006666] transition-colors"
-                  onClick={() => { 
-                    addToCart(book);
-                    showToast({ title: 'Added to cart', message: `${book.title}`, type: 'success', actionLabel: 'View Cart', onAction: () => { window.location.href = '/cart'; } });
-                  }}
-                >
-                  Add to Cart
-                </button>
-                <button
-                  className="px-6 py-2 border border-[#008080] text-[#008080] rounded-md hover:bg-[#008080]/10 transition-colors"
-                  onClick={() => { 
-                    addToWishlist(book);
-                    showToast({ title: 'Added to wishlist', message: `${book.title}`, type: 'success', actionLabel: 'View Wishlist', onAction: () => { window.location.href = '/wishlist'; } });
-                  }}
-                >
-                  Add to Wishlist
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 
 export default function BookCollection() {
@@ -122,50 +52,69 @@ export default function BookCollection() {
   const [isClient, setIsClient] = useState(false);
   const [selectedBook, setSelectedBook] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [books, setBooks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     setIsClient(true);
+    fetchPopularBooks();
   }, []);
 
-  // Sample book data - matches Cart expectations (price as string)
-  const books = [
-    {
-      id: 1,
-      title: "The Silent Echo",
-      author: "Various Authors",
-      cover: "/assets/book-cover.svg",
-      category: "Fiction",
-      price: "$24.99",
-      description: "A captivating tale that resonates through the ages.",
-    },
-    {
-      id: 2,
-      title: "Data Structures Explained",
-      author: "Tech Writers",
-      cover: "/assets/yoga_voighe.jpg",
-      category: "Computer Science",
-      price: "$32.50",
-      description: "Clear explanations of core data structures with examples.",
-    },
-    {
-      id: 3,
-      title: "Modern Architecture",
-      author: "Design Collective",
-      cover: "/assets/Yoasoi_sang.jpg",
-      category: "Art & Design",
-      price: "$45.00",
-      description: "Exploring contemporary architectural marvels.",
-    },
-    {
-      id: 4,
-      title: "Cooking Essentials",
-      author: "Chef Group",
-      cover: "/assets/74_lathutay.jpg",
-      category: "Cooking",
-      price: "$19.95",
-      description: "Your guide to everyday cooking fundamentals.",
-    },
-  ];
+  const fetchPopularBooks = async () => {
+    try {
+      setLoading(true);
+      // Get actual best seller books based on order count from backend
+      const popularBooksResponse = await getPopularBooks(4); // Get top 4 best sellers
+
+      // Format the books data for display
+      const formattedBooks = popularBooksResponse.map(book => ({
+        id: book.book_id,
+        title: book.title,
+        author: book.authors && book.authors.length > 0 ? book.authors[0].name : 'Unknown Author',
+        stock_quantity: book.stock_quantity,
+        originalPrice: formatPrice(Number(book.price ?? 0)),
+        discountedPrice: book.discounted_price ? formatPrice(Number(book.discounted_price)) : null,
+        price: book.discounted_price ? formatPrice(Number(book.discounted_price)) : formatPrice(Number(book.price ?? 0)),
+        cover: getBookCoverUrl(book.image_url),
+        images: [
+          book.image_url ? getBookCoverUrl(book.image_url) : null,
+          book.image2_url ? getBookCoverUrl(book.image2_url) : null,
+          book.image3_url ? getBookCoverUrl(book.image3_url) : null,
+        ].filter(Boolean),
+        tag: book.is_best_seller ? "Bán chạy" : book.is_new ? "Mới ra mắt" : (book.discounted_price ? "Giảm giá" : undefined),
+        isFreeShip: !!book.is_free_ship,
+        description: book.description,
+        pages: book.pages,
+        publishDate: book.publication_date,
+        isbn: book.isbn,
+        genre: book.categories && book.categories.length > 0 ? book.categories[0].name : undefined,
+        category: book.categories && book.categories.length > 0 ? book.categories[0].name : undefined,
+        orderCount: book.order_count || 0 // Include order count for display
+      }));
+
+      // Attach average rating per book (for display)
+      const booksWithRatings = await Promise.all(
+        formattedBooks.map(async (b) => {
+          try {
+            const reviews = await getBookReviews(b.id);
+            const ratings = Array.isArray(reviews) ? reviews.map(r => r.rating) : [];
+            const totalReviews = ratings.length;
+            const averageRating = totalReviews > 0 ? (ratings.reduce((sum, r) => sum + r, 0) / totalReviews) : 0;
+            return { ...b, averageRating, totalReviews };
+          } catch {
+            return { ...b, averageRating: 0, totalReviews: 0 };
+          }
+        })
+      );
+      setBooks(booksWithRatings);
+    } catch (err) {
+      console.error('Error fetching popular books:', err);
+      setError('Failed to load popular books');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const openBookDetails = (book) => {
     setSelectedBook(book);
@@ -184,18 +133,44 @@ export default function BookCollection() {
     }
   };
 
+  if (loading) {
+    return (
+      <section className="py-20 px-6 lg:px-8 max-w-7xl mx-auto">
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#008080]"></div>
+        </div>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="py-20 px-6 lg:px-8 max-w-7xl mx-auto">
+        <div className="text-center text-red-600">
+          <p>{error}</p>
+          <button
+            onClick={fetchPopularBooks}
+            className="mt-4 px-4 py-2 bg-[#008080] text-white rounded hover:bg-[#006666] transition-colors"
+          >
+            Retry Loading Popular Books
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="py-20 px-6 lg:px-8 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10">
         <div>
           <h2 className="text-3xl font-bold text-[#2D2D2D] relative inline-block">
-            Popular Collections
+            Sách Bán Chạy
             <span className="absolute -bottom-2 left-0 w-1/2 h-1 bg-[#008080]"></span>
           </h2>
-          <p className="text-gray-600 mt-4 max-w-xl">Explore curated selections across genres, topics, and interests.</p>
+          <p className="text-gray-600 mt-4 max-w-xl">Xem qua các sách bán chạy để tìm kiếm những cuốn sách phổ biến nhất.</p>
         </div>
         <Link href="/books" className="mt-4 md:mt-0 text-[#008080] font-medium hover:underline flex items-center group">
-          View all collections
+          Xem tất cả sách bán chạy
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
@@ -204,13 +179,25 @@ export default function BookCollection() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
         {books.map((book) => (
-          <BookCard 
-            key={book.id} 
-            book={book} 
-            isClient={isClient} 
-            onViewDetails={() => openBookDetails(book)} 
-            addToCart={(b) => { addToCart(b); showToast({ title: 'Added to cart', message: `${b.title}`, type: 'success', actionLabel: 'View Cart', onAction: () => { window.location.href = '/cart'; } }); }} 
-            addToWishlist={(b) => { addToWishlist(b); showToast({ title: 'Added to wishlist', message: `${b.title}`, type: 'success', actionLabel: 'View Wishlist', onAction: () => { window.location.href = '/wishlist'; } }); }} 
+          <BookCard
+            key={book.id}
+            book={book}
+            isClient={isClient}
+            onViewDetails={() => openBookDetails(book)}
+            addToCart={(b) => {
+              const cartItem = {
+                id: b.id,
+                title: b.title,
+                author: b.author,
+                cover: b.cover,
+                price: b.price,
+                isFreeShip: b.isFreeShip,
+                quantity: 1
+              };
+              addToCart(cartItem);
+              showToast({ title: 'Added to cart', message: `${b.title}`, type: 'success', actionLabel: 'View Cart', onAction: () => { window.location.href = '/cart'; } });
+            }}
+            addToWishlist={(b) => { addToWishlist(b); showToast({ title: 'Added to wishlist', message: `${b.title}`, type: 'success', actionLabel: 'View Wishlist', onAction: () => { window.location.href = '/wishlist'; } }); }}
           />
         ))}
       </div>

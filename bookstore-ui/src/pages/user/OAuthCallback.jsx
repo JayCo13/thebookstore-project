@@ -19,7 +19,7 @@ const OAuthCallback = () => {
         if (error) {
           console.error('OAuth error:', error);
           setStatus('error');
-          
+
           // Handle different error types
           let errorMessage = 'Authentication failed. Please try again.';
           switch (error) {
@@ -36,7 +36,7 @@ const OAuthCallback = () => {
               errorMessage = 'Server error occurred. Please try again later.';
               break;
           }
-          
+
           alert(errorMessage);
           setTimeout(() => navigate('/login'), 2000);
           return;
@@ -45,15 +45,15 @@ const OAuthCallback = () => {
         if (token && tokenType === 'bearer') {
           // Clear any existing authentication state to prevent multiple logins
           logout();
-          
+
           // Handle successful authentication
           const result = handleGoogleCallback(token);
-          
+
           if (result.access_token) {
             // Fetch complete user profile
             try {
               const currentUser = await getCurrentUser();
-              
+
               // Create complete user data with proper structure
               const completeUserData = {
                 access_token: result.access_token,
@@ -62,6 +62,7 @@ const OAuthCallback = () => {
                 first_name: currentUser.first_name,
                 last_name: currentUser.last_name,
                 email: currentUser.email,
+                phone_number: currentUser.phone_number,
                 role: currentUser.role,
                 created_at: currentUser.created_at,
                 is_active: currentUser.is_active,
@@ -69,16 +70,16 @@ const OAuthCallback = () => {
                 profile_picture: currentUser.profile_picture,
                 auth_provider: currentUser.auth_provider
               };
-              
+
               setUser(completeUserData);
               setIsAuthenticated(true);
-              
+
               // Store complete user data consistently (only 'user' key)
               localStorage.setItem('user', JSON.stringify(completeUserData));
-              
+
               setStatus('success');
               setTimeout(() => navigate('/'), 1500);
-              
+
             } catch (profileError) {
               console.error('Error fetching user profile:', profileError);
               // If profile fetch fails, show error and redirect to login
@@ -92,7 +93,7 @@ const OAuthCallback = () => {
         } else {
           throw new Error('Invalid callback parameters');
         }
-        
+
       } catch (error) {
         console.error('OAuth callback error:', error);
         setStatus('error');
@@ -114,7 +115,7 @@ const OAuthCallback = () => {
             <p className="text-gray-600">Please wait while we complete your sign-in...</p>
           </>
         )}
-        
+
         {status === 'success' && (
           <>
             <div className="rounded-full h-12 w-12 bg-green-100 mx-auto mb-4 flex items-center justify-center">
@@ -126,7 +127,7 @@ const OAuthCallback = () => {
             <p className="text-gray-600">Redirecting you to the homepage...</p>
           </>
         )}
-        
+
         {status === 'error' && (
           <>
             <div className="rounded-full h-12 w-12 bg-red-100 mx-auto mb-4 flex items-center justify-center">

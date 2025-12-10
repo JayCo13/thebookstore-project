@@ -11,12 +11,26 @@ import secrets
 import string
 
 # Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Support long passwords safely with bcrypt_sha256, while still verifying existing bcrypt hashes.
+pwd_context = CryptContext(schemes=["bcrypt_sha256", "bcrypt"], deprecated="auto")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verify a password against its hash.
+    - Uses bcrypt_sha256 for new hashes (supports long passwords).
+    - If the stored hash is raw bcrypt and the provided password is very long (>72 chars),
+      attempt a truncated verification to avoid bcrypt length errors.
+    """
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except Exception:
+        # Fallback for legacy bcrypt hashes with passwords >72 chars
+        if hashed_password and hashed_password.startswith("$2") and len(plain_password) > 72:
+            try:
+                return pwd_context.verify(plain_password[:72], hashed_password)
+            except Exception:
+                return False
+        return False
 
 
 def get_password_hash(password: str) -> str:

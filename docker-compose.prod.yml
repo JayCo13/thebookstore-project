@@ -1,0 +1,140 @@
+# Production Docker Compose with Nginx and SSL
+
+# Production Docker Compose with Nginx reverse proxy and SSL
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: bookstore-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+    networks:
+      - bookstore-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: bookstore-redis
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bookstore-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./bookstore-backend
+      dockerfile: Dockerfile
+    container_name: bookstore-backend
+    restart: always
+    environment:
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - ZALO_APP_ID=${ZALO_APP_ID}
+      - ZALO_APP_SECRET=${ZALO_APP_SECRET}
+      - ZALO_TEMPLATE_ID=${ZALO_TEMPLATE_ID}
+      - ZALO_CALLBACK_URL=${ZALO_CALLBACK_URL}
+      - GHN_API_TOKEN=${GHN_API_TOKEN}
+      - GHN_SHOP_ID=${GHN_SHOP_ID}
+      - GHN_API_BASE_URL=${GHN_API_BASE_URL:-https://online-gateway.ghn.vn/shiip/public-api}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      - MAIL_FROM=${MAIL_FROM}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-Tam Nguon}
+      - MAIL_SERVER=${MAIL_SERVER:-smtp.gmail.com}
+      - MAIL_PORT=${MAIL_PORT:-587}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_chroma:/app/chroma_db_store
+      - backend_static:/app/static
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bookstore-network
+
+  # React Frontend (built for production)
+  frontend:
+    build:
+      context: ./bookstore-ui
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_API_URL=${REACT_APP_API_URL}
+        - REACT_APP_GHN_API_TOKEN=${REACT_APP_GHN_API_TOKEN}
+        - REACT_APP_GHN_SHOP_ID=${REACT_APP_GHN_SHOP_ID}
+        - REACT_APP_GHN_API_BASE_URL=${REACT_APP_GHN_API_BASE_URL:-https://online-gateway.ghn.vn/shiip/public-api}
+    container_name: bookstore-frontend
+    restart: always
+    depends_on:
+      - backend
+    networks:
+      - bookstore-network
+
+  # Nginx Reverse Proxy with SSL
+  nginx:
+    image: nginx:alpine
+    container_name: bookstore-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./certbot/www:/var/www/certbot:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - bookstore-network
+
+  # Certbot for SSL certificates
+  certbot:
+    image: certbot/certbot
+    container_name: bookstore-certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot:rw
+      - ./certbot/conf:/etc/letsencrypt:rw
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - bookstore-network
+
+volumes:
+  mysql_data:
+  redis_data:
+  backend_uploads:
+  backend_chroma:
+  backend_static:
+
+networks:
+  bookstore-network:
+    driver: bridge

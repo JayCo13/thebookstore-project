@@ -1,0 +1,186 @@
+Objective: Modify the FastAPI backend to use a vector database for semantic search. This will replace the "stupid" keyword-based search and the "Query Transformation" LLM call. We will use ChromaDB as the vector store and a Sentence Transformer model for Vietnamese embeddings.
+
+Core Technologies to Use:
+
+Vector Database: chromadb (free, runs locally)
+
+Embedding Model: dangvantuan/vietnamese-embedding (high-quality, free Vietnamese model)
+
+Libraries to Install: pip install chromadb sentence-transformers
+
+Task 1: Create a One-Time "Embedding" Script
+Create a new, separate Python script named embed_data.py. This script will run once to populate the vector database from our existing MySQL data.
+
+Python
+
+# embed_data.py
+
+import chromadb
+from sentence_transformers import SentenceTransformer
+import mysql.connector # Or whatever MySQL driver you use (e.g., SQLAlchemy)
+
+# 1. --- CONNECT TO DATABASES ---
+# Connect to your MySQL DB
+# (Add your MySQL connection logic here...)
+# ...
+print("Connecting to MySQL...")
+# Example: cursor.execute("SELECT id, title, description FROM books")
+# all_books = cursor.fetchall()
+
+# Connect to ChromaDB (it will create files in this folder)
+client = chromadb.PersistentClient(path="./chroma_db_store")
+
+# Create or get a collection for our books
+try:
+    collection = client.create_collection(name="books")
+except chromadb.errors.UniqueConstraintError:
+    collection = client.get_collection(name="books")
+
+# 2. --- LOAD EMBEDDING MODEL ---
+print("Loading embedding model...")
+# This model is excellent for Vietnamese
+model = SentenceTransformer("dangvantuan/vietnamese-embedding")
+
+# 3. --- PROCESS AND EMBED BOOKS ---
+print(f"Embedding {len(all_books)} books...")
+for book in all_books:
+    book_id = str(book['id']) # IMPORTANT: Chroma IDs must be strings
+    book_content = f"Tên sách: {book['title']}. Mô tả: {book['description']}"
+
+    # Check if this book is already embedded
+    if len(collection.get(ids=[book_id])['ids']) > 0:
+        print(f"Book ID {book_id} already exists. Skipping.")
+        continue
+
+    # Create the embedding
+    embedding = model.encode(book_content).tolist()
+
+    # Store in ChromaDB
+    collection.add(
+        embeddings=[embedding],
+        documents=[book_content],  # The original text (good for debugging)
+        metadatas=[{"book_id": book['id']}], # The *real* MySQL ID
+        ids=[book_id] # The unique ID for Chroma
+    )
+
+print("Embedding complete!")
+Instruction: Run this embed_data.py script one time from your terminal.
+
+Task 2: Modify the FastAPI Chatbot Endpoint
+Now, go to your main FastAPI code file (e.g., main.py) where your /chat endpoint lives. You will completely change the logic inside this endpoint.
+
+Remove This Old Logic:
+
+REMOVE the first Groq call (the "Query Transformation" step).
+
+REMOVE the old database call that used a LIKE keyword search (e.g., /api/v1/books?search=...).
+
+Implement This New Logic:
+
+Python
+
+# In your FastAPI file (e.g., main.py)
+
+import chromadb
+from sentence_transformers import SentenceTransformer
+from groq import Groq
+# ... all your other FastAPI imports (Depends, Body, etc.)
+
+# --- GLOBAL VARIABLES (Load once at startup) ---
+
+# Load Groq client
+groq_client = Groq(api_key="YOUR_GROQ_API_KEY")
+
+# Load Embedding Model
+print("Loading embedding model for API...")
+embedding_model = SentenceTransformer("dangvantuan/vietnamese-embedding")
+
+# Connect to the *existing* ChromaDB
+chroma_client = chromadb.PersistentClient(path="./chroma_db_store")
+book_collection = chroma_client.get_collection(name="books")
+
+# Connect to MySQL (use your existing connection pool/dependency)
+# ...
+
+# The strict system prompt (from our previous conversation)
+STRICT_SYSTEM_PROMPT = """
+You are a customer support assistant for a bookstore.
+You MUST answer questions in Vietnamese.
+Your task is to answer the user's question based ONLY on the information provided in the [CONTEXT] block.
+Do NOT use any external knowledge or make up any information.
+If the answer is not found in the [CONTEXT], you MUST reply with: "Tôi không tìm thấy thông tin này, bạn có thể hỏi câu khác được không?"
+"""
+
+# --- YOUR CHATBOT ENDPOINT ---
+# (This is your existing @app.post("/chat") or similar)
+@app.post("/api/v1/chat")
+async def handle_chat_request(chat_request: ChatRequest, db: Session = Depends(get_mysql_db)):
+    
+    user_question = chat_request.message
+    
+    # --- STEP 1: EMBED THE USER'S QUESTION ---
+    question_embedding = embedding_model.encode(user_question).tolist()
+
+    # --- STEP 2: QUERY VECTOR DB (CHROMA) ---
+    # Search Chroma for the top 5 most relevant books
+    results = book_collection.query(
+        query_embeddings=[question_embedding],
+        n_results=5 
+    )
+
+    book_ids = []
+    if results['ids']:
+        # Extract the *real* MySQL IDs from the metadata
+        for metadata in results['metadatas'][0]:
+            book_ids.append(metadata['book_id'])
+
+    # --- STEP 3: QUERY MYSQL WITH THE IDs ---
+    context_text = ""
+    if book_ids:
+        # Use the IDs to get fresh, 100% accurate data from MySQL
+        # This is just an example query, use your own DB logic/ORM
+        query = f"SELECT id, title, description, price, stock_quantity FROM books WHERE id IN ({','.join(map(str, book_ids))})"
+        # ... execute your MySQL query ...
+        fresh_book_data = db.execute(query).fetchall() # Example
+        
+        # Build the text context for the LLM
+        context_text = "Dưới đây là dữ liệu sách từ cơ sở dữ liệu:\n"
+        for book in fresh_book_data:
+            context_text += f"- Sách: {book['title']}, Giá: {book['price']}, Tồn kho: {book['stock_quantity']}, Mô tả: {book['description']}\n"
+    else:
+        context_text = "Không tìm thấy cuốn sách nào liên quan."
+
+    # --- STEP 4: CALL GROQ (ANSWER GENERATION) ---
+    
+    # Build the final prompt for Groq
+    user_prompt_for_groq = f"""
+[CONTEXT]
+{context_text}
+[/CONTEXT]
+
+Based *only* on the [CONTEXT] above, please answer this user's question:
+{user_question}
+"""
+
+    try:
+        chat_completion = groq_client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": STRICT_SYSTEM_PROMPT
+                },
+                {
+                    "role": "user",
+                    "content": user_prompt_for_groq
+                }
+            ],
+            model="llama-3.1-8b-instant",
+            temperature=0.1, # Keep it factual
+        )
+        
+        ai_response = chat_completion.choices[0].message.content
+        return {"response": ai_response}
+
+    except Exception as e:
+        print(f"Error calling Groq: {e}")
+        return {"response": "Đã có lỗi xảy ra, vui lòng thử lại."}

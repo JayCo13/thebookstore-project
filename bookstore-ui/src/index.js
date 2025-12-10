@@ -4,6 +4,15 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
+// Disable console in production for security
+if (process.env.NODE_ENV === 'production') {
+  console.log = () => { };
+  console.warn = () => { };
+  console.error = () => { };
+  console.debug = () => { };
+  console.info = () => { };
+}
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>

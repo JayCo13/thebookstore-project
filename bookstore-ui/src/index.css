@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hero section title font size override */
+h1.hero-title {
+  font-size: var(--hero-title-size, 32px) !important;
+  line-height: 1.2 !important;
+}
+
+p.hero-body {
+  font-size: var(--hero-body-size, 18px) !important;
+  line-height: 1.5 !important;
+}
+
 /* Global modern font setup */
 :root {
   --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
@@ -23,11 +34,131 @@ code {
 
 /* Subtle infinite float animation for portraits */
 @keyframes floatY {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
 }
 
 .animate-float-slow {
   animation: floatY 4s ease-in-out infinite;
   will-change: transform;
+}
+
+/* Toast animations */
+@keyframes toastSlideIn {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toastSlideOut {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.animate-toast-in {
+  animation: toastSlideIn 300ms ease-out forwards;
+}
+
+.animate-toast-out {
+  animation: toastSlideOut 200ms ease-in forwards;
+}
+
+/* Splashing border animations for toasts */
+
+
+.toast-border-success {
+  border: 2px solid rgba(34, 197, 94, 0.6);
+  color: rgba(34, 197, 94, 0.7);
+
+}
+
+.toast-border-error {
+  border: 2px solid rgba(239, 68, 68, 0.6);
+  color: rgba(239, 68, 68, 0.7);
+
+}
+
+.toast-border-info {
+  border: 2px solid rgba(59, 130, 246, 0.6);
+  color: rgba(59, 130, 246, 0.7);
+
+}
+
+.toast-border-default {
+  border: 2px solid rgba(0, 128, 128, 0.6);
+  color: rgba(0, 128, 128, 0.7);
+
+}
+
+/* Custom Audio Player Slider Styles */
+.audio-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: #e5e7eb;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.audio-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #000000;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+.audio-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+}
+
+.audio-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #000000;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+.audio-slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+}
+
+.audio-slider.progress-slider {
+  background: linear-gradient(to right, #000000 0%, #000000 var(--progress, 0%), #e5e7eb var(--progress, 0%), #e5e7eb 100%);
+}
+
+.audio-slider.volume-slider {
+  background: linear-gradient(to right, #000000 0%, #000000 var(--volume, 100%), #e5e7eb var(--volume, 100%), #e5e7eb 100%);
 }

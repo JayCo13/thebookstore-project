@@ -1,11 +1,13 @@
 .order-details { padding: 20px; }
-.od-header { display:grid; grid-template-columns: 1fr auto; align-items:center; gap:10px; margin-bottom:16px; }
+.od-header { display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }
 .od-header h1 { font-size:24px; font-weight:700; }
+.od-title { display:flex; align-items:baseline; gap:10px; }
+.od-status { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-weight:600; font-size:13px; background:#FEF3C7; color:#B45309; }
+.od-meta { color:#6b7280; }
 .tags { display:flex; gap:8px; }
 .tag { padding:4px 10px; border-radius:999px; font-weight:600; font-size:13px; }
 .tag.paid { background:#DCFCE7; color:#166534; }
 .tag.unfulfilled { background:#FEF3C7; color:#B45309; }
-.meta { color:#6b7280; }
 .head-actions { display:flex; justify-content:flex-end; }
 
 .od-grid { display:grid; grid-template-columns: 2fr 1fr; gap:16px; }
@@ -16,10 +18,14 @@
 .title { font-weight:700; }
 .count { color:#6b7280; }
 
-.item { display:grid; grid-template-columns: 1fr 140px 60px 120px; gap:12px; padding:10px 0; border-top:1px solid #f1f5f9; }
-.item:first-of-type { border-top:none; }
-.item .name { font-weight:600; color:#111827; }
-.item .attrs { color:#6b7280; font-size:13px; }
+.items-table { border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; }
+.items-row { display:grid; grid-template-columns: 50px 1fr 120px 70px 120px; gap:12px; align-items:center; padding:10px 12px; border-top:1px solid #f1f5f9; }
+.items-row:first-of-type { border-top:none; }
+.items-header { background:#fafafa; font-weight:600; color:#0f1115; }
+.col-image { text-align:center; }
+.thumb { width:44px; height:44px; border-radius:8px; object-fit:cover; background:#f3f4f6; }
+.items-row .name { font-weight:600; color:#111827; }
+.items-row .attrs { color:#6b7280; font-size:13px; }
 .sale { color:#ef4444; font-weight:700; margin-right:8px; }
 .strike { color:#9ca3af; text-decoration: line-through; }
 .qty { font-weight:600; }

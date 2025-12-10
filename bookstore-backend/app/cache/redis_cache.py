@@ -105,10 +105,16 @@ class CacheKeys:
         return f"book:{book_id}"
     
     @staticmethod
-    def books_list(page: int, per_page: int, category: str = None, search: str = None) -> str:
-        key = f"books:page:{page}:per_page:{per_page}"
-        if category:
-            key += f":category:{category}"
+    def book_detail(book_id: int) -> str:
+        return f"book:{book_id}:detail"
+    
+    @staticmethod
+    def books_list(skip: int, limit: int, category_id: int = None, author_id: int = None, search: str = None) -> str:
+        key = f"books:skip:{skip}:limit:{limit}"
+        if category_id:
+            key += f":category:{category_id}"
+        if author_id:
+            key += f":author:{author_id}"
         if search:
             key += f":search:{search}"
         return key
@@ -118,8 +124,10 @@ class CacheKeys:
         return f"user:{user_id}"
     
     @staticmethod
-    def user_orders(user_id: int) -> str:
-        return f"user:{user_id}:orders"
+    def user_orders(user_id: int, skip: int = 0, limit: int = 10, status_filter: str = None) -> str:
+        """Cache key for user orders with pagination and filtering."""
+        status_part = f":status:{status_filter}" if status_filter else ""
+        return f"orders:user:{user_id}:skip:{skip}:limit:{limit}{status_part}"
     
     @staticmethod
     def user_wishlist(user_id: int) -> str:
@@ -138,12 +146,25 @@ class CacheKeys:
         return f"book:{book_id}:stock"
     
     @staticmethod
-    def popular_books() -> str:
-        return "books:popular"
+    def popular_books(limit: int = 10) -> str:
+        return f"books:popular:limit:{limit}"
     
     @staticmethod
     def featured_books() -> str:
         return "books:featured"
+
+    # Chat memory keys
+    @staticmethod
+    def chat_history(session_id: str) -> str:
+        return f"chat:session:{session_id}:history"
+
+    @staticmethod
+    def chat_context(session_id: str) -> str:
+        return f"chat:session:{session_id}:context"
+
+    @staticmethod
+    def chat_shipping(session_id: str) -> str:
+        return f"chat:session:{session_id}:shipping"
 
 
 # Cache decorators and utilities

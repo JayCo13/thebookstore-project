@@ -25,22 +25,21 @@ export default function RegisterForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!agreeToTerms) {
       setError('Bạn phải đồng ý với Điều khoản Dịch vụ để tiếp tục');
       return;
     }
-    
+
     setError('');
     setSuccess(false);
     setLoading(true);
 
     try {
-      // Split fullName into first_name and last_name as expected by backend
       const nameParts = formData.fullName.trim().split(' ');
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
-      
+
       const registrationData = {
         first_name: firstName,
         last_name: lastName,
@@ -48,9 +47,8 @@ export default function RegisterForm() {
         password: formData.password,
       };
 
-      const result = await register(registrationData);
+      await register(registrationData);
 
-      // Registration successful
       setSuccess(true);
       setFormData({
         fullName: '',
@@ -58,16 +56,14 @@ export default function RegisterForm() {
         password: '',
       });
       setAgreeToTerms(false);
-      
-      // Redirect to login page after showing success message
+
       setTimeout(() => {
         navigate('/login');
       }, 5000);
-      
+
     } catch (error) {
       console.error('Registration error:', error);
-      
-      // Handle different error types
+
       if (error.message.includes('Email already exists') || error.message.includes('already registered')) {
         setError('Email này đã được sử dụng. Vui lòng sử dụng email khác.');
       } else if (error.message.includes('Password must be at least')) {
@@ -86,17 +82,18 @@ export default function RegisterForm() {
     return (
       <div className="text-center py-8">
         <div className="mb-4">
-          <svg className="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 48 48">
-            <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="2" fill="none"/>
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 24l4 4 8-8"/>
-          </svg>
+          <div className="w-16 h-16 mx-auto rounded-full bg-[#008080]/10 flex items-center justify-center">
+            <svg className="h-8 w-8 text-[#008080]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Đăng ký thành công!</h3>
+        <h3 className="text-lg font-semibold text-[#2D2D2D] mb-2">Đăng ký thành công!</h3>
         <p className="text-sm text-gray-600 mb-4">
-          Chúng tôi đã gửi email xác nhận đến địa chỉ email của bạn. 
+          Chúng tôi đã gửi email xác nhận đến địa chỉ email của bạn.
           Vui lòng kiểm tra email và nhấp vào liên kết xác nhận để kích hoạt tài khoản.
         </p>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-gray-400">
           Bạn sẽ được chuyển hướng đến trang đăng nhập trong 5 giây...
         </p>
       </div>
@@ -106,23 +103,14 @@ export default function RegisterForm() {
   return (
     <div className="w-full">
       {error && (
-        <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md text-sm flex items-start">
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-start">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
           </svg>
           <span>{error}</span>
         </div>
       )}
-      
-      {success && (
-        <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-md text-sm flex items-start">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-          </svg>
-          <span>Đăng ký thành công! Đang tự động đăng nhập...</span>
-        </div>
-      )}
-      
+
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="relative">
           <input
@@ -132,17 +120,17 @@ export default function RegisterForm() {
             value={formData.fullName}
             onChange={handleChange}
             required
-            className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 peer pt-5 transition-colors duration-200"
+            className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#008080]/20 focus:border-[#008080] peer pt-6 transition-all duration-200 bg-gray-50 focus:bg-white"
             placeholder=" "
           />
-          <label 
-            htmlFor="fullName" 
-            className="absolute text-sm text-gray-500 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-3 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 peer-focus:text-blue-600"
+          <label
+            htmlFor="fullName"
+            className="absolute text-sm text-gray-500 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-4 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0.5 peer-focus:scale-75 peer-focus:-translate-y-3 peer-focus:text-[#008080]"
           >
             Họ và tên
           </label>
         </div>
-        
+
         <div className="relative">
           <input
             id="email"
@@ -151,17 +139,17 @@ export default function RegisterForm() {
             value={formData.email}
             onChange={handleChange}
             required
-            className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 peer pt-5 transition-colors duration-200"
+            className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#008080]/20 focus:border-[#008080] peer pt-6 transition-all duration-200 bg-gray-50 focus:bg-white"
             placeholder=" "
           />
-          <label 
-            htmlFor="email" 
-            className="absolute text-sm text-gray-500 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-3 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 peer-focus:text-blue-600"
+          <label
+            htmlFor="email"
+            className="absolute text-sm text-gray-500 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-4 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0.5 peer-focus:scale-75 peer-focus:-translate-y-3 peer-focus:text-[#008080]"
           >
             Email
           </label>
         </div>
-        
+
         <div className="relative">
           <input
             id="password"
@@ -171,18 +159,18 @@ export default function RegisterForm() {
             onChange={handleChange}
             required
             minLength={8}
-            className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 peer pt-5 transition-colors duration-200"
+            className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#008080]/20 focus:border-[#008080] peer pt-6 transition-all duration-200 bg-gray-50 focus:bg-white pr-12"
             placeholder=" "
           />
-          <label 
-            htmlFor="password" 
-            className="absolute text-sm text-gray-500 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-3 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 peer-focus:text-blue-600"
+          <label
+            htmlFor="password"
+            className="absolute text-sm text-gray-500 duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-4 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0.5 peer-focus:scale-75 peer-focus:-translate-y-3 peer-focus:text-[#008080]"
           >
             Mật khẩu
           </label>
-          <button 
-            type="button" 
-            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700 cursor-pointer transition-colors duration-200" 
+          <button
+            type="button"
+            className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 cursor-pointer transition-colors duration-200"
             onClick={() => setShowPassword(!showPassword)}
             aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
           >
@@ -197,8 +185,8 @@ export default function RegisterForm() {
               </svg>
             )}
           </button>
-          <p className="mt-1 text-xs text-gray-500">Mật khẩu phải có ít nhất 8 ký tự</p>
         </div>
+        <p className="text-xs text-gray-400 -mt-3 ml-1">Mật khẩu phải có ít nhất 8 ký tự</p>
 
         <div className="flex items-start">
           <div className="flex items-center h-5">
@@ -208,24 +196,24 @@ export default function RegisterForm() {
               type="checkbox"
               checked={agreeToTerms}
               onChange={() => setAgreeToTerms(!agreeToTerms)}
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-offset-0"
+              className="w-4 h-4 text-[#008080] border-gray-300 rounded focus:ring-[#008080] focus:ring-offset-0"
             />
           </div>
           <div className="ml-3 text-sm">
-            <label htmlFor="terms" className="text-gray-700">
-              Tôi đồng ý với các <a href="/terms" className="text-blue-600 hover:underline font-medium">Điều khoản Dịch vụ</a> của The Book Store.
+            <label htmlFor="terms" className="text-gray-600">
+              Tôi đồng ý với các <a href="/dieu-khoan-dich-vu" className="text-[#008080] hover:underline font-medium">Điều khoản Dịch vụ</a> của Tâm Nguồn Book.
             </label>
           </div>
         </div>
-        
+
         <button
           type="submit"
           disabled={loading || success}
-          className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+          className="w-full py-3.5 px-4 bg-[#008080] hover:bg-[#006666] text-white font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-[#008080]/50 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-[#008080]/25 hover:shadow-xl hover:shadow-[#008080]/30"
         >
           {loading ? (
             <div className="flex items-center justify-center">
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>

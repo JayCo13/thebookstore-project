@@ -1,20 +1,108 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { Button } from '../../components';
+import { formatPrice } from '../../utils/currency';
 import './OrderDetails.css';
+import { getOrder, getOrderShippingStatus } from '../../service';
+import { getBookCoverUrl } from '../../service/api';
 
 const OrderDetails = () => {
-  const orderId = window.location.pathname.split('/').pop();
+  const params = useParams();
+  // Route is defined as "/admin/orders/:id"; use that param directly
+  const orderId = params.id || window.location.pathname.split('/').pop();
+  const [order, setOrder] = useState(null);
+  const [ghnStatus, setGhnStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getOrder(orderId);
+        if (!mounted) return;
+        setOrder(data);
+        // Fetch GHN status if code exists
+        try {
+          const code = data?.ghn_order_code;
+          if (code) {
+            const s = await getOrderShippingStatus(orderId);
+            const status = s?.status || s?.data?.status || null;
+            console.groupCollapsed(`[Admin OrderDetails] GHN status for order #${orderId}`);
+            console.log('ghn_order_code:', code);
+            console.log('status response:', s);
+            console.log('applied status:', status);
+            console.groupEnd();
+            if (mounted) setGhnStatus(status);
+          } else {
+            console.info(`[Admin OrderDetails] No GHN code for order #${orderId} — skipping status fetch`);
+            if (mounted) setGhnStatus(null);
+          }
+        } catch {}
+      } catch (e) {
+        console.error('Load order failed', e);
+        if (!mounted) return;
+        setError('Không thể tải đơn hàng');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    load();
+    return () => { mounted = false; };
+  }, [orderId]);
+
+  if (loading) {
+    return (
+      <div className="order-details">
+        <header className="od-header">
+          <h1>Order #{orderId}</h1>
+        </header>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="order-details">
+        <header className="od-header">
+          <h1>Order #{orderId}</h1>
+        </header>
+        <p style={{ color: '#dc2626' }}>{error}</p>
+      </div>
+    );
+  }
+
+  if (!order) return null;
+
+  const status = String((ghnStatus ?? order.status) || 'Pending');
+  const createdAt = order.order_date;
+  const formattedDate = createdAt ? new Date(createdAt).toLocaleString() : '—';
+
+  // Canonical items per backend schema
+  const items = Array.isArray(order.order_items) ? order.order_items : [];
+  const subtotal = items.reduce((sum, it) => {
+    const unit = Number(it.price_at_purchase ?? it.book?.price ?? 0);
+    const qty = Number(it.quantity) || 0;
+    return sum + unit * qty;
+  }, 0);
+  const shipping = Number(order.shipping_fee ?? 0);
+  const grandTotal = Number(order.total_amount ?? subtotal + shipping);
+
+  const getItemImageSrc = (item) => {
+    const imgUrl = item.book?.image_url || item.image_url || item.book?.cover_image || item.cover_image;
+    if (imgUrl) return getBookCoverUrl(imgUrl);
+    return item.book?.cover || item.cover || item.book?.thumbnail || item.image || '/assets/book-placeholder.jpg';
+  };
+
   return (
     <div className="order-details">
       <header className="od-header">
-        <h1>Order #{orderId}</h1>
-        <div className="tags">
-          <span className="tag paid">Paid</span>
-          <span className="tag unfulfilled">Unfulfilled</span>
-        </div>
-        <div className="meta">06.22.2019 at 10:14 am</div>
-        <div className="head-actions">
-          <Button variant="primary">Fulfill</Button>
+        <div className="od-title">
+          <h1>Order #{order.order_id}</h1>
+          <span className="od-status" title="Order status">{status}</span>
         </div>
       </header>
 
@@ -22,60 +110,69 @@ const OrderDetails = () => {
         {/* Left column */}
         <div className="left">
           <section className="card">
-            <div className="card-header">
-              <span className="dot yellow"></span>
-              <span className="title">Unfulfilled</span>
-              <span className="count">2</span>
-            </div>
-            <div className="item">
-              <div className="item-main">
-                <div className="name">Nike Air Force 1 LV8 2</div>
-                <div className="attrs">Color: Black-Pink • Shoelaces: Black • Size: US 10</div>
+            <div className="card-header">Danh sách sản phẩm</div>
+            <div className="items-table">
+              <div className="items-row items-header">
+                <div className="col col-image">Ảnh</div>
+                <div className="col col-product">Sản phẩm</div>
+                <div className="col col-price">Giá</div>
+                <div className="col col-qty">Số lượng</div>
+                <div className="col col-total">Tổng cộng</div>
               </div>
-              <div className="price">
-                <span className="sale">$80.00</span>
-                <span className="strike">$138.00</span>
-              </div>
-              <div className="qty">1</div>
-              <div className="line">$80.00</div>
-            </div>
-            <div className="item">
-              <div className="item-main">
-                <div className="name">UNITED STANDARD - Long Hoodie</div>
-                <div className="attrs">Color: Black • Size: US 10</div>
-              </div>
-              <div className="price">$234.00</div>
-              <div className="qty">1</div>
-              <div className="line">$234.00</div>
+              {items.map((item, idx) => {
+                const unit = Number(item.price_at_purchase ?? item.book?.price ?? 0);
+                const qty = Number(item.quantity) || 0;
+                const lineTotal = unit * qty;
+                return (
+                  <div key={idx} className="items-row">
+                    <div className="col col-image">
+                      <img src={getItemImageSrc(item)} alt="" className="thumb" />
+                    </div>
+                    <div className="col col-product">
+                      <div className="name">{item.book?.title || `Book #${item.book_id}`}</div>
+                      {item.book?.isbn && (
+                        <div className="attrs">ISBN: {item.book.isbn}</div>
+                      )}
+                    </div>
+                    <div className="col col-price">{formatPrice(unit)}</div>
+                    <div className="col col-qty">{qty}</div>
+                    <div className="col col-total">{formatPrice(lineTotal)}</div>
+                  </div>
+                );
+              })}
+              {items.length === 0 && (
+                <div className="items-row"><div className="col">No items</div></div>
+              )}
             </div>
           </section>
 
           <section className="card">
-            <div className="card-header">Delivery</div>
+            <div className="card-header">Phương thức vận chuyển</div>
+
             <div className="delivery-row">
-              <div className="carrier">FedEx</div>
-              <div className="desc">First class package</div>
+              <div className="carrier">{order.shipping_method || '—'}</div>
+              <div className="desc">{order.shipping_service_id ? `Service ID: ${order.shipping_service_id}` : ''}</div>
             </div>
-            <div className="fee">$20.00</div>
+            <div className="fee">{formatPrice(shipping)}</div>
           </section>
 
           <section className="card">
-            <div className="card-header">Payment Summary</div>
+            <div className="card-header">Tổng Bill</div>
             <div className="summary-row">
-              <span>Subtotal (2 items)</span>
-              <span>$314.00</span>
+              <span> ({items.length} sản phẩm)</span>
+              <span>{formatPrice(subtotal)}</span>
             </div>
             <div className="summary-row">
-              <span>Delivery</span>
-              <span>$20.00</span>
+              <span>Phí vận chuyển</span>
+              <span>{formatPrice(shipping)}</span>
             </div>
-            <div className="summary-row">
-              <span>Tax (VAT 20% included)</span>
-              <span>$0.00</span>
+             <div className="summary-row">
+              <span>Phương thức thanh toán</span>
+              <span>{String(order.payment_method || '').toUpperCase()}</span>
             </div>
             <div className="summary-total">
-              <span>Total paid by customer</span>
-              <span>$334.00</span>
+              <span>Tổng cộng</span>
+              <span>{formatPrice(grandTotal)}</span>
             </div>
           </section>
         </div>
@@ -83,32 +180,33 @@ const OrderDetails = () => {
         {/* Right column */}
         <aside className="right">
           <section className="card">
-            <div className="card-header">Customer</div>
+            <div className="card-header">Thông tin khách hàng</div>
             <div className="customer">
               <div className="avatar"></div>
               <div className="info">
-                <div className="name">Eugenia Bates</div>
-                <div className="orders">5 Orders</div>
-                <div className="contact">eugenia.bates@gmail.com • +1 (223) 123-1234</div>
+                <div className="name">{order.shipping_full_name || '—'}</div>
+                <div className="contact">
+                  <p>Email: {order.guest_email || '—'}</p>
+                  <p>Điện thoại: {order.shipping_phone_number || '—'}</p>
+                </div>
               </div>
             </div>
           </section>
 
           <section className="card">
-            <div className="card-header">Shipping Address</div>
+            <div className="card-header">Địa chỉ giao hàng</div>
             <div className="address">
-              Eugenia Bates
-              <br/>Sawayn Oval, 605, New York, 12101
-              <br/>United States
-            </div>
-          </section>
-
-          <section className="card">
-            <div className="card-header">Billing Address</div>
-            <div className="address">
-              Eugenia Bates
-              <br/>Sawayn Oval, 605, New York, 12101
-              <br/>United States
+              <p>Ngày đặt: {formattedDate}</p>
+              <p>Địa chỉ: {order.shipping_address_line1 || '—'}</p>
+              {(order.shipping_city || order.shipping_postal_code) && (
+                <>
+                  {order.shipping_city || ''}
+                  {(order.shipping_city && order.shipping_postal_code) ? ', ' : ''}
+                  {order.shipping_postal_code || ''}
+                  <br />
+                </>
+              )}
+              {order.shipping_country && (<>{order.shipping_country}</>)}
             </div>
           </section>
         </aside>

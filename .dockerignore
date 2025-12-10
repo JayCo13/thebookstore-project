@@ -1,0 +1,36 @@
+# Folders
+bookstore-backend/__pycache__
+bookstore-backend/.venv
+bookstore-backend/env
+bookstore-backend/chroma_db_store
+bookstore-backend/uploads
+bookstore-ui/node_modules
+bookstore-ui/build
+
+# Environment files
+.env
+.env.local
+.env.*.local
+bookstore-backend/.env
+bookstore-ui/.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+
+# Test files
+test_*.py
+test_*.html
+*.txt
+console.txt
+ghn.txt
+zalo.txt

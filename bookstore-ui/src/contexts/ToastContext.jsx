@@ -10,12 +10,39 @@ export const ToastProvider = ({ children }) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const showToast = useCallback(({ title, message, type = 'success', duration = 2500, actionLabel, onAction }) => {
+  const showToast = useCallback((messageOrOptions, type = 'success', duration = 2500) => {
     const id = ++idCounter.current;
-    const toast = { id, title, message, type, actionLabel, onAction };
+    
+    // Handle both object and string calling patterns
+    let toast;
+    if (typeof messageOrOptions === 'string') {
+      // Legacy string pattern: showToast('message', 'type')
+      toast = { 
+        id, 
+        title: null, 
+        message: messageOrOptions, 
+        type, 
+        duration,
+        actionLabel: null, 
+        onAction: null 
+      };
+    } else {
+      // Object pattern: showToast({ title, message, type, ... })
+      const { title, message, type: objType = 'success', duration: objDuration = 2500, actionLabel, onAction } = messageOrOptions;
+      toast = { 
+        id, 
+        title, 
+        message, 
+        type: objType, 
+        duration: objDuration,
+        actionLabel, 
+        onAction 
+      };
+    }
+    
     setToasts((prev) => [...prev, toast]);
-    if (duration > 0) {
-      setTimeout(() => removeToast(id), duration);
+    if (toast.duration > 0) {
+      setTimeout(() => removeToast(id), toast.duration);
     }
   }, [removeToast]);
 
@@ -25,11 +52,16 @@ export const ToastProvider = ({ children }) => {
     <ToastContext.Provider value={value}>
       {children}
       {/* Toast host */}
-      <div className="fixed top-24 right-6 z-[9999] space-y-3 pointer-events-none">
+      <div className="fixed top-24 right-4 sm:right-4 z-[99999] space-y-3 pointer-events-none max-w-sm w-full sm:w-auto px-4 sm:px-0">
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto flex items-start gap-3 rounded-lg shadow-lg ring-1 ring-gray-200 p-4 w-80 animate-[fadeIn_150ms_ease-out] ${t.type === 'success' ? 'bg-white' : t.type === 'info' ? 'bg-white' : t.type === 'error' ? 'bg-white' : 'bg-white'} border border-${t.type === 'success' ? 'green-500' : t.type === 'info' ? 'blue-500' : t.type === 'error' ? 'red-500' : 'teal-500'}`} 
+            className={`pointer-events-auto flex items-start gap-3 rounded-lg shadow-lg p-4 w-full max-w-sm bg-white ${
+              t.type === 'success' ? 'toast-border-success' : 
+              t.type === 'error' ? 'toast-border-error' : 
+              t.type === 'info' ? 'toast-border-info' : 
+              'toast-border-default'
+            }`} 
           >
             {/* Icon */}
             <div className={`mt-0.5 p-2 rounded-full ${t.type === 'success' ? 'bg-green-100 text-green-700' : t.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-[#008080]/10 text-[#008080]'}`}>

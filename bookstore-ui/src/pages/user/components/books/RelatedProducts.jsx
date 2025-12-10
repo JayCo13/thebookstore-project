@@ -7,6 +7,7 @@ import { useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { register } from 'swiper/element/bundle';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { formatPrice } from '../../../../utils/currency';
 
 // Register Swiper web components
 register();
@@ -45,10 +46,7 @@ export default function RelatedProducts({ relatedBooks = [] }) {
     swiperContainer.initialize();
   }, []);
   
-  // Format price with thousand separator
-  const formatPrice = (price) => {
-    return price?.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + 'đ';
-  };
+
   
   // If no related books
   if (!relatedBooks || relatedBooks.length === 0) {

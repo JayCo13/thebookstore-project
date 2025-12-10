@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
 
-export default function AddressForm({ 
-  address = null, 
-  onSubmit, 
-  onCancel, 
-  isLoading = false 
+export default function AddressForm({
+  address = null,
+  onSubmit,
+  onCancel,
+  isLoading = false
 }) {
   const [formData, setFormData] = useState({
     phone_number: '',
-    address_line1: '',
-    address_line2: '',
+    address_line_1: '',
+    address_line_2: '',
     city: '',
-    postal_code: '',
-    country: '',
     is_default_shipping: false
   });
 
@@ -23,12 +21,10 @@ export default function AddressForm({
     if (address) {
       setFormData({
         phone_number: address.phone_number || '',
-        address_line1: address.address_line1 || '',
-        address_line2: address.address_line2 || '',
+        address_line_1: address.address_line_1 || '',
+        address_line_2: address.address_line_2 || '',
         city: address.city || '',
-        postal_code: address.postal_code || '',
-        country: address.country || '',
-        is_default_shipping: address.is_default_shipping || false
+        is_default_shipping: address.is_default_shipping || address.is_default || false
       });
     }
   }, [address]);
@@ -53,23 +49,15 @@ export default function AddressForm({
     const newErrors = {};
 
     if (!formData.phone_number.trim()) {
-      newErrors.phone_number = 'Phone number is required';
+      newErrors.phone_number = 'Vui lòng nhập số điện thoại';
     }
 
-    if (!formData.address_line1.trim()) {
-      newErrors.address_line1 = 'Address line 1 is required';
+    if (!formData.address_line_1.trim()) {
+      newErrors.address_line_1 = 'Vui lòng nhập địa chỉ';
     }
 
     if (!formData.city.trim()) {
-      newErrors.city = 'City is required';
-    }
-
-    if (!formData.postal_code.trim()) {
-      newErrors.postal_code = 'Postal code is required';
-    }
-
-    if (!formData.country.trim()) {
-      newErrors.country = 'Country is required';
+      newErrors.city = 'Vui lòng nhập thành phố';
     }
 
     setErrors(newErrors);
@@ -78,28 +66,27 @@ export default function AddressForm({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     if (validateForm()) {
       onSubmit(formData);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-5">
       {/* Phone Number */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Phone Number *
+          Số điện thoại *
         </label>
         <input
           type="tel"
           name="phone_number"
           value={formData.phone_number}
           onChange={handleInputChange}
-          className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-black focus:border-transparent transition ${
-            errors.phone_number ? 'border-red-300' : 'border-gray-300'
-          }`}
-          placeholder="Enter your phone number"
+          className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-black focus:border-transparent transition ${errors.phone_number ? 'border-red-300' : 'border-gray-300'
+            }`}
+          placeholder="Nhập số điện thoại"
           disabled={isLoading}
         />
         {errors.phone_number && (
@@ -110,118 +97,56 @@ export default function AddressForm({
       {/* Address Line 1 */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Address Line 1 *
+          Địa chỉ *
         </label>
         <input
           type="text"
-          name="address_line1"
-          value={formData.address_line1}
+          name="address_line_1"
+          value={formData.address_line_1}
           onChange={handleInputChange}
-          className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-black focus:border-transparent transition ${
-            errors.address_line1 ? 'border-red-300' : 'border-gray-300'
-          }`}
-          placeholder="Street address, P.O. box, company name, c/o"
+          className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-black focus:border-transparent transition ${errors.address_line_1 ? 'border-red-300' : 'border-gray-300'
+            }`}
+          placeholder="Số nhà, tên đường, phường/xã"
           disabled={isLoading}
         />
-        {errors.address_line1 && (
-          <p className="mt-1 text-sm text-red-600">{errors.address_line1}</p>
+        {errors.address_line_1 && (
+          <p className="mt-1 text-sm text-red-600">{errors.address_line_1}</p>
         )}
       </div>
 
       {/* Address Line 2 */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Address Line 2
+          Địa chỉ bổ sung
         </label>
         <input
           type="text"
-          name="address_line2"
-          value={formData.address_line2}
+          name="address_line_2"
+          value={formData.address_line_2}
           onChange={handleInputChange}
           className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-black focus:border-transparent transition"
-          placeholder="Apartment, suite, unit, building, floor, etc."
+          placeholder="Căn hộ, tòa nhà, tầng, v.v."
           disabled={isLoading}
         />
       </div>
 
-      {/* City and Postal Code */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            City *
-          </label>
-          <input
-            type="text"
-            name="city"
-            value={formData.city}
-            onChange={handleInputChange}
-            className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-black focus:border-transparent transition ${
-              errors.city ? 'border-red-300' : 'border-gray-300'
-            }`}
-            placeholder="Enter city"
-            disabled={isLoading}
-          />
-          {errors.city && (
-            <p className="mt-1 text-sm text-red-600">{errors.city}</p>
-          )}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Postal Code *
-          </label>
-          <input
-            type="text"
-            name="postal_code"
-            value={formData.postal_code}
-            onChange={handleInputChange}
-            className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-black focus:border-transparent transition ${
-              errors.postal_code ? 'border-red-300' : 'border-gray-300'
-            }`}
-            placeholder="Enter postal code"
-            disabled={isLoading}
-          />
-          {errors.postal_code && (
-            <p className="mt-1 text-sm text-red-600">{errors.postal_code}</p>
-          )}
-        </div>
-      </div>
-
-      {/* Country */}
+      {/* City */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Country *
+          Thành phố / Tỉnh *
         </label>
-        <select
-          name="country"
-          value={formData.country}
+        <input
+          type="text"
+          name="city"
+          value={formData.city}
           onChange={handleInputChange}
-          className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-black focus:border-transparent transition ${
-            errors.country ? 'border-red-300' : 'border-gray-300'
-          }`}
+          className={`w-full px-4 py-3 border rounded-md focus:ring-2 focus:ring-black focus:border-transparent transition ${errors.city ? 'border-red-300' : 'border-gray-300'
+            }`}
+          placeholder="Nhập thành phố / tỉnh"
           disabled={isLoading}
-        >
-          <option value="">Select a country</option>
-          <option value="United States">United States</option>
-          <option value="Canada">Canada</option>
-          <option value="United Kingdom">United Kingdom</option>
-          <option value="Australia">Australia</option>
-          <option value="Germany">Germany</option>
-          <option value="France">France</option>
-          <option value="Japan">Japan</option>
-          <option value="South Korea">South Korea</option>
-          <option value="Singapore">Singapore</option>
-          <option value="Malaysia">Malaysia</option>
-          <option value="Thailand">Thailand</option>
-          <option value="Philippines">Philippines</option>
-          <option value="Indonesia">Indonesia</option>
-          <option value="Vietnam">Vietnam</option>
-          <option value="India">India</option>
-          <option value="China">China</option>
-          <option value="Other">Other</option>
-        </select>
-        {errors.country && (
-          <p className="mt-1 text-sm text-red-600">{errors.country}</p>
+        />
+        {errors.city && (
+          <p className="mt-1 text-sm text-red-600">{errors.city}</p>
         )}
       </div>
 
@@ -236,7 +161,7 @@ export default function AddressForm({
           disabled={isLoading}
         />
         <label className="ml-2 block text-sm text-gray-700">
-          Set as default shipping address
+          Đặt làm địa chỉ giao hàng mặc định
         </label>
       </div>
 
@@ -248,14 +173,14 @@ export default function AddressForm({
           className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 transition"
           disabled={isLoading}
         >
-          Cancel
+          Hủy
         </button>
         <button
           type="submit"
           className="flex-1 px-6 py-3 bg-black text-white font-medium rounded-md hover:bg-gray-800 transition disabled:opacity-50"
           disabled={isLoading}
         >
-          {isLoading ? 'Saving...' : (address ? 'Update Address' : 'Add Address')}
+          {isLoading ? 'Đang lưu...' : (address ? 'Cập nhật' : 'Thêm địa chỉ')}
         </button>
       </div>
     </form>

@@ -8,16 +8,20 @@ const AdminLayout = ({ children }) => {
   return (
     <div className="admin-shell">
       <header className="admin-topbar">
-        <div className="brand">
-          <img src="/assets/logo.png" alt="Bookstore Logo" />
-          <span>Trang Quản Trị</span>
-        </div>
+        <NavLink to="/admin">
+          <div className="brand">
+            <img src="/assets/logo.png" alt="Bookstore Logo" />
+            <span>Trang Quản Trị</span>
+          </div>
+        </NavLink>
         <nav className="top-nav">
-          <NavLink to="/admin" end className={({isActive})=> isActive? 'active' : ''}>Overview</NavLink>
-          <NavLink to="/admin/products">Products</NavLink>
-          <NavLink to="/admin/orders">Orders</NavLink>
-          <NavLink to="/admin/analytics">Analytics</NavLink>
-          <NavLink to="/admin/history">History</NavLink>
+          <NavLink to="/admin" end className={({ isActive }) => isActive ? 'active' : ''}>Tổng Quan</NavLink>
+          <NavLink to="/admin/products" className={({ isActive }) => isActive ? 'active' : ''}>Kho Sách</NavLink>
+          <NavLink to="/admin/stationery" className={({ isActive }) => isActive ? 'active' : ''}>Văn Phòng Phẩm & Yoga</NavLink>
+          <NavLink to="/admin/orders" className={({ isActive }) => isActive ? 'active' : ''}>Đơn Hàng</NavLink>
+          <NavLink to="/admin/customers" className={({ isActive }) => isActive ? 'active' : ''}>Khách Hàng</NavLink>
+          <NavLink to="/admin/reviews" className={({ isActive }) => isActive ? 'active' : ''}>Đánh Giá</NavLink>
+          <NavLink to="/admin/hero-slides" className={({ isActive }) => isActive ? 'active' : ''}>Slider Trang Chủ</NavLink>
         </nav>
         <div className="actions">
           <div className='p-2' title="Search">

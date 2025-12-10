@@ -10,6 +10,7 @@ import { StarIcon } from '@heroicons/react/20/solid';
 import { ShoppingCartIcon, BoltIcon } from '@heroicons/react/24/outline';
 import { useCart } from '../../../../hooks/useCart';
 import { useToast } from '../../../../contexts/ToastContext.jsx';
+import { formatPrice } from '../../../../utils/currency';
 
 export default function ProductInfo({ book }) {
   const [quantity, setQuantity] = useState(1);
@@ -19,10 +20,7 @@ export default function ProductInfo({ book }) {
     ? Math.round(((book.OriginalPrice - book.SellingPrice) / book.OriginalPrice) * 100)
     : 0;
   
-  // Format price with thousand separator
-  const formatPrice = (price) => {
-    return price?.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + 'đ';
-  };
+
   
   // Handle quantity changes
   const decreaseQuantity = () => {
@@ -47,18 +45,17 @@ export default function ProductInfo({ book }) {
       title: book.BookName ?? book.title,
       author: book.Author ?? book.author,
       cover: book.BookImage ?? book.cover,
-      price: book.Price ?? book.price ?? '$0.00',
+      price: formatPrice(book.Price ?? book.price ?? 0),
+      quantity: quantity || 1
     };
-    for (let i = 0; i < (quantity || 1); i++) {
-      addToCart(item);
-    }
+    addToCart(item);
     showToast({ title: 'Added to cart', message: `${item.title} (x${quantity})`, type: 'success', actionLabel: 'View Cart', onAction: () => { window.location.href = '/cart'; } });
   };
   
   // Handle buy now
   const handleBuyNow = () => {
     // Implementation will be added later
-    console.log('Buy now:', { bookId: book.BookID, quantity });
+    // Buy now action
   };
   
   return (

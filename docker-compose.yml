@@ -1,0 +1,115 @@
+# Bookstore Docker Compose
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: bookstore-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-bookstore_db}
+      MYSQL_USER: ${MYSQL_USER:-approot}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-apppassword}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3307:3306"  # Use 3307 to avoid conflict with local MySQL
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+    networks:
+      - bookstore-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: bookstore-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"  # Use 6380 to avoid conflict with local Redis
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bookstore-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./bookstore-backend
+      dockerfile: Dockerfile
+    container_name: bookstore-backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-approot}:${MYSQL_PASSWORD:-apppassword}@mysql:3306/${MYSQL_DATABASE:-bookstore_db}
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - ZALO_APP_ID=${ZALO_APP_ID}
+      - ZALO_APP_SECRET=${ZALO_APP_SECRET}
+      - ZALO_TEMPLATE_ID=${ZALO_TEMPLATE_ID}
+      - ZALO_CALLBACK_URL=${ZALO_CALLBACK_URL}
+      - GHN_API_TOKEN=${GHN_API_TOKEN}
+      - GHN_SHOP_ID=${GHN_SHOP_ID}
+      - GHN_API_BASE_URL=${GHN_API_BASE_URL:-https://online-gateway.ghn.vn/shiip/public-api}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      - MAIL_FROM=${MAIL_FROM}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-Tam Nguon}
+      - MAIL_SERVER=${MAIL_SERVER:-smtp.gmail.com}
+      - MAIL_PORT=${MAIL_PORT:-587}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_chroma:/app/chroma_db_store
+      - backend_static:/app/static
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bookstore-network
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./bookstore-ui
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+        - REACT_APP_GHN_API_TOKEN=${REACT_APP_GHN_API_TOKEN}
+        - REACT_APP_GHN_SHOP_ID=${REACT_APP_GHN_SHOP_ID}
+        - REACT_APP_GHN_API_BASE_URL=${REACT_APP_GHN_API_BASE_URL:-https://online-gateway.ghn.vn/shiip/public-api}
+    container_name: bookstore-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - bookstore-network
+
+volumes:
+  mysql_data:
+  redis_data:
+  backend_uploads:
+  backend_chroma:
+  backend_static:
+
+networks:
+  bookstore-network:
+    driver: bridge

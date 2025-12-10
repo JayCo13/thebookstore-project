@@ -38,7 +38,25 @@ class HttpClient {
    * Get authorization token from localStorage
    */
   getAuthToken() {
-    return localStorage.getItem('authToken');
+    // First try to get from authToken (legacy)
+    const directToken = localStorage.getItem('authToken');
+    if (directToken) {
+      return directToken;
+    }
+
+    // Then try to get from user object (current implementation)
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        return user.access_token;
+      } catch (e) {
+        console.error('Error parsing user from localStorage:', e);
+        return null;
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -46,9 +64,24 @@ class HttpClient {
    */
   setAuthToken(token) {
     if (token) {
+      // For backward compatibility, also store as authToken
       localStorage.setItem('authToken', token);
+
+      // Update the user object if it exists
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          user.access_token = token;
+          localStorage.setItem('user', JSON.stringify(user));
+        } catch (e) {
+          console.error('Error updating user token in localStorage:', e);
+        }
+      }
     } else {
+      // Clear both storage methods
       localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
     }
   }
 
@@ -58,11 +91,11 @@ class HttpClient {
   getHeaders(customHeaders = {}) {
     const headers = { ...this.defaultHeaders, ...customHeaders };
     const token = this.getAuthToken();
-    
+
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
-    
+
     return headers;
   }
 
@@ -104,7 +137,7 @@ class HttpClient {
       if (error instanceof ApiError) {
         throw error;
       }
-      
+
       // Network or other errors
       throw new ApiError(
         error.message || 'Network error occurred',
@@ -120,7 +153,7 @@ class HttpClient {
   async get(endpoint, params = {}) {
     const queryString = new URLSearchParams(params).toString();
     const url = queryString ? `${endpoint}?${queryString}` : endpoint;
-    
+
     return this.request(url, {
       method: 'GET',
     });
@@ -171,7 +204,7 @@ class HttpClient {
   async upload(endpoint, file, additionalData = {}) {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     // Add additional data to form
     Object.keys(additionalData).forEach(key => {
       formData.append(key, additionalData[key]);
@@ -200,7 +233,7 @@ class ApiService {
   }
 
   // ==================== Authentication ====================
-  
+
   /**
    * User login
    */
@@ -305,8 +338,6 @@ class ApiService {
   }
 
   /**
-   * Handle Google OAuth callback - this is handled by backend redirect
-   * This method is for extracting token from URL after redirect
    */
   handleGoogleCallback(token) {
     if (token) {
@@ -314,6 +345,24 @@ class ApiService {
       return { access_token: token, token_type: 'bearer' };
     }
     throw new Error('No token provided');
+  }
+
+  /**
+   * Create account from guest checkout
+   */
+  async createAccountFromGuest(guestData) {
+    const response = await this.client.post('/auth/create-from-guest', guestData);
+    if (response.access_token) {
+      this.client.setAuthToken(response.access_token);
+    }
+    return response;
+  }
+
+  /**
+   * Update user's phone number
+   */
+  async updateUserPhone(phoneNumber) {
+    return this.client.patch('/users/me/phone', { phone_number: phoneNumber });
   }
 
   // ==================== Books ====================
@@ -378,7 +427,7 @@ class ApiService {
    * Get featured books
    */
   async getFeaturedBooks() {
-    return this.client.get('/books/featured');
+    return this.client.get('/books/best-sellers');
   }
 
   /**
@@ -392,7 +441,7 @@ class ApiService {
    * Get best sellers
    */
   async getBestSellers() {
-    return this.client.get('/books/bestsellers');
+    return this.client.get('/books/best-sellers');
   }
 
   /**
@@ -403,10 +452,268 @@ class ApiService {
   }
 
   /**
+   * Get best seller books
+   */
+  async getBestSellerBooks(limit = 10) {
+    return this.client.get('/books/best-sellers', { limit });
+  }
+
+  /**
+   * Get new release books
+   */
+  async getNewReleaseBooks(limit = 10) {
+    return this.client.get('/books/new-releases', { limit });
+  }
+
+  /**
+   * Get discounted books
+   */
+  async getDiscountedBooks(limit = 10) {
+    return this.client.get('/books/discounted', { limit });
+  }
+
+  /**
+   * Get books for specific slide
+   */
+  async getSlideBooks(slideNumber, limit = 10) {
+    return this.client.get(`/books/slide/${slideNumber}`, { limit });
+  }
+
+  /**
+   * Get stationery items for specific slide
+   */
+  async getSlideStationery(slideNumber, limit = 10) {
+    return this.client.get('/stationery', { slide_number: slideNumber, limit });
+  }
+
+  // ==================== Slides (Hero Content) ====================
+
+  /**
+   * Get all slide contents (1-3)
+   */
+  async getSlideContents() {
+    return this.client.get('/slides/contents');
+  }
+
+  /**
+   * Get slide content by slide number
+   */
+  async getSlideContent(slideNumber) {
+    return this.client.get(`/slides/contents/${slideNumber}`);
+  }
+
+  /**
+   * Update slide content (Admin only)
+   */
+  async updateSlideContent(slideNumber, data) {
+    // Backend route is under /slides (requires admin token via require_admin)
+    return this.client.put(`/slides/contents/${slideNumber}`, data);
+  }
+
+  /**
    * Upload book cover image (Admin only)
    */
   async uploadBookImage(bookId, imageFile) {
-    return this.client.upload(`/books/${bookId}/image`, imageFile);
+    // Create FormData with correct parameter name for backend
+    const formData = new FormData();
+    formData.append('image', imageFile);
+
+    return this.client.request(`/books/${bookId}/image`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        // Don't set Content-Type for FormData, let browser set it with boundary
+        Authorization: this.client.getAuthToken() ? `Bearer ${this.client.getAuthToken()}` : undefined,
+      },
+    });
+  }
+
+  // ==================== Stationery ====================
+
+  /**
+   * Get all stationery with pagination and filters
+   */
+  async getStationery(params = {}) {
+    return this.client.get('/stationery', params);
+  }
+
+  /**
+   * Get stationery item by ID
+   */
+  async getStationeryItem(stationeryId) {
+    return this.client.get(`/stationery/${stationeryId}`);
+  }
+
+  /**
+   * Get stationery item by slug
+   */
+  async getStationeryBySlug(slug) {
+    return this.client.get(`/stationery/slug/${slug}`);
+  }
+
+  /**
+   * Create stationery (Admin only)
+   */
+  async createStationery(data) {
+    return this.client.post('/stationery', data);
+  }
+
+  /**
+   * Update stationery (Admin only)
+   */
+  async updateStationery(stationeryId, data) {
+    return this.client.put(`/stationery/${stationeryId}`, data);
+  }
+
+  /**
+   * Delete stationery (Admin only)
+   */
+  async deleteStationery(stationeryId) {
+    return this.client.delete(`/stationery/${stationeryId}`);
+  }
+
+  /**
+   * Get stationery categories. Falls back to books categories if endpoint unavailable.
+   */
+  async getStationeryCategories() {
+    try {
+      return await this.client.get('/stationery/categories/');
+    } catch (err) {
+      // Fallback to existing books categories endpoint
+      return await this.client.get('/books/categories/');
+    }
+  }
+
+  /**
+   * Upload stationery image 1 (Admin only)
+   */
+  async uploadStationeryImage(stationeryId, imageFile) {
+    const formData = new FormData();
+    formData.append('image', imageFile);
+
+    return this.client.request(`/stationery/${stationeryId}/image`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        Authorization: this.client.getAuthToken() ? `Bearer ${this.client.getAuthToken()}` : undefined,
+      },
+    });
+  }
+
+  /**
+   * Upload stationery image 2 (Admin only)
+   */
+  async uploadStationeryImage2(stationeryId, imageFile) {
+    const formData = new FormData();
+    formData.append('image', imageFile);
+
+    return this.client.request(`/stationery/${stationeryId}/image2`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        Authorization: this.client.getAuthToken() ? `Bearer ${this.client.getAuthToken()}` : undefined,
+      },
+    });
+  }
+
+  /**
+   * Upload stationery image 3 (Admin only)
+   */
+  async uploadStationeryImage3(stationeryId, imageFile) {
+    const formData = new FormData();
+    formData.append('image', imageFile);
+
+    return this.client.request(`/stationery/${stationeryId}/image3`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        Authorization: this.client.getAuthToken() ? `Bearer ${this.client.getAuthToken()}` : undefined,
+      },
+    });
+  }
+
+  /**
+   * Upload book cover image 2 (Admin only)
+   */
+  async uploadBookImage2(bookId, imageFile) {
+    // Create FormData with correct parameter name for backend
+    const formData = new FormData();
+    formData.append('image', imageFile);
+
+    return this.client.request(`/books/${bookId}/image2`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        // Don't set Content-Type for FormData, let browser set it with boundary
+        Authorization: this.client.getAuthToken() ? `Bearer ${this.client.getAuthToken()}` : undefined,
+      },
+    });
+  }
+
+  /**
+   * Upload book cover image 3 (Admin only)
+   */
+  async uploadBookImage3(bookId, imageFile) {
+    // Create FormData with correct parameter name for backend
+    const formData = new FormData();
+    formData.append('image', imageFile);
+
+    return this.client.request(`/books/${bookId}/image3`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        // Don't set Content-Type for FormData, let browser set it with boundary
+        Authorization: this.client.getAuthToken() ? `Bearer ${this.client.getAuthToken()}` : undefined,
+      },
+    });
+  }
+
+  /**
+   * Upload read sample images (Admin only)
+   */
+  async uploadReadSampleImages(bookId, imageFiles) {
+    const formData = new FormData();
+
+    // Append multiple files
+    for (let i = 0; i < imageFiles.length; i++) {
+      formData.append('images', imageFiles[i]);
+    }
+
+    return this.client.request(`/books/${bookId}/read-sample`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        Authorization: this.client.getAuthToken() ? `Bearer ${this.client.getAuthToken()}` : undefined,
+      },
+    });
+  }
+
+  /**
+   * Upload audio sample file (Admin only)
+   */
+  async uploadAudioSample(bookId, audioFile) {
+    const formData = new FormData();
+    formData.append('audio', audioFile);
+
+    return this.client.request(`/books/${bookId}/audio-sample`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        Authorization: this.client.getAuthToken() ? `Bearer ${this.client.getAuthToken()}` : undefined,
+      },
+    });
+  }
+
+  /**
+   * Delete audio sample file (Admin only)
+   */
+  async deleteAudioSample(bookId) {
+    return this.client.request(`/books/${bookId}/audio-sample`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: this.client.getAuthToken() ? `Bearer ${this.client.getAuthToken()}` : undefined,
+      },
+    });
   }
 
   /**
@@ -598,7 +905,19 @@ class ApiService {
    * Create new order
    */
   async createOrder(orderData) {
-    return this.client.post('/orders', orderData);
+    console.log('=== API SERVICE - CREATE ORDER ===');
+    console.log('Endpoint: POST /orders');
+    console.log('Request Headers:', this.client.getHeaders());
+    console.log('Request Body:', JSON.stringify(orderData, null, 2));
+    console.log('=== END API SERVICE DEBUG ===');
+
+    const result = await this.client.post('/orders', orderData);
+
+    console.log('=== API SERVICE - CREATE ORDER RESPONSE ===');
+    console.log('Response:', JSON.stringify(result, null, 2));
+    console.log('=== END API SERVICE RESPONSE ===');
+
+    return result;
   }
 
   /**
@@ -616,10 +935,18 @@ class ApiService {
   }
 
   /**
+   * Sync GHN shipping statuses for all orders (Admin only)
+   * This batch endpoint updates order statuses from GHN API
+   */
+  async syncGhnStatus() {
+    return this.client.post('/orders/sync-ghn-status');
+  }
+
+  /**
    * Get all orders (Admin only)
    */
   async getAllOrders(params = {}) {
-    return this.client.get('/admin/orders', params);
+    return this.client.get('/orders/all', params);
   }
 
   /**
@@ -627,6 +954,20 @@ class ApiService {
    */
   async getAllOrdersAdmin(params = {}) {
     return this.client.get('/orders/all', params);
+  }
+
+  /**
+   * Get GHN shipping status for an order (Admin only)
+   */
+  async getOrderShippingStatus(orderId) {
+    return this.client.get(`/orders/${orderId}/shipping-status`);
+  }
+
+  /**
+   * Get GHN shipping status for user's own order
+   */
+  async getMyOrderShippingStatus(orderId) {
+    return this.client.get(`/orders/${orderId}/my-shipping-status`);
   }
 
   // ==================== Users ====================
@@ -656,7 +997,16 @@ class ApiService {
    * Get all users (Admin only)
    */
   async getAllUsers(params = {}) {
-    return this.client.get('/admin/users', params);
+    return this.client.get('/users/admin/all', params);
+  }
+
+  /**
+   * Update user status - ban or unban (Admin only)
+   * @param {number} userId - User ID
+   * @param {number} isActive - 0=banned, 1=active
+   */
+  async updateUserStatus(userId, isActive) {
+    return this.client.patch(`/users/admin/${userId}/status?is_active=${isActive}`);
   }
 
   /**
@@ -741,6 +1091,36 @@ class ApiService {
   }
 
   /**
+   * Get reviews for a stationery item
+   */
+  async getStationeryReviews(stationeryId, params = {}) {
+    return this.client.get(`/stationery/${stationeryId}/reviews`, params);
+  }
+
+  /**
+   * Create or update current user's review for a stationery item
+   */
+  async createStationeryReview(stationeryId, reviewData) {
+    return this.client.post(`/stationery/${stationeryId}/reviews`, reviewData);
+  }
+
+  /**
+   * Get all reviews (admin or public list depending on backend)
+   * Optional params: { limit, offset }
+   */
+  async getAllReviews(params = {}) {
+    return this.client.get('/reviews', params);
+  }
+
+  /**
+   * Moderate review content with server-side AI
+   */
+  async moderateReview({ text, rating = null, book_id = null, user_id = null, language = null }) {
+    const payload = { text, rating, book_id, user_id, language };
+    return this.client.post('/moderation/review', payload);
+  }
+
+  /**
    * Update review
    */
   async updateReview(reviewId, reviewData) {
@@ -793,12 +1173,12 @@ class ApiService {
     // Use base URL without API prefix for health endpoint
     const baseUrl = this.client.baseURL.replace('/api/v1', '');
     const url = `${baseUrl}/health`;
-    
+
     const response = await fetch(url, {
       method: 'GET',
       headers: this.client.getHeaders()
     });
-    
+
     return this.client.handleResponse(response);
   }
 
@@ -808,12 +1188,12 @@ class ApiService {
   async getApiInfo() {
     // Use base URL without API prefix for root endpoint
     const baseUrl = this.client.baseURL.replace('/api/v1', '');
-    
+
     const response = await fetch(baseUrl, {
       method: 'GET',
       headers: this.client.getHeaders()
     });
-    
+
     return this.client.handleResponse(response);
   }
 
@@ -846,18 +1226,78 @@ class ApiService {
    */
   getBookCoverUrl(imageUrl) {
     if (!imageUrl) return null;
-    
+
     // If it's already a full URL, return as is
     if (imageUrl.startsWith('http')) return imageUrl;
-    
+
     // If it starts with /static/, construct full URL
     if (imageUrl.startsWith('/static/')) {
       const baseUrl = this.client.baseURL.replace('/api/v1', '');
       return `${baseUrl}${imageUrl}`;
     }
-    
+
     // Otherwise, assume it's a relative path under /static/
     return this.getStaticFileUrl(imageUrl);
+  }
+
+  // ==================== Notifications ====================
+
+  /**
+   * Get active notification (public endpoint)
+   */
+  async getActiveNotification() {
+    return this.client.get('/notifications/active');
+  }
+
+  /**
+   * Get all notifications (Admin only)
+   */
+  async getNotifications() {
+    return this.client.get('/notifications');
+  }
+
+  /**
+   * Create notification (Admin only)
+   */
+  async createNotification(notificationData) {
+    return this.client.post('/notifications', notificationData);
+  }
+
+  /**
+   * Update notification (Admin only)
+   */
+  async updateNotification(notificationId, notificationData) {
+    return this.client.put(`/notifications/${notificationId}`, notificationData);
+  }
+
+  /**
+   * Delete notification (Admin only)
+   */
+  async deleteNotification(notificationId) {
+    return this.client.delete(`/notifications/${notificationId}`);
+  }
+
+  /**
+   * Toggle notification active status (Admin only)
+   */
+  async toggleNotification(notificationId) {
+    return this.client.put(`/notifications/${notificationId}/toggle`);
+  }
+
+  // Local storage helpers for notifications
+  dismissNotification(id) {
+    if (!id) return;
+    const dismissed = JSON.parse(sessionStorage.getItem('dismissed_notifications') || '[]');
+    if (!dismissed.includes(id)) {
+      dismissed.push(id);
+      sessionStorage.setItem('dismissed_notifications', JSON.stringify(dismissed));
+    }
+  }
+
+  isNotificationDismissed(id) {
+    if (!id) return false;
+    const dismissed = JSON.parse(sessionStorage.getItem('dismissed_notifications') || '[]');
+    return dismissed.includes(id);
   }
 }
 
@@ -881,10 +1321,13 @@ export const initializeSystem = (...args) => apiService.initializeSystem(...args
 export const verifyEmail = (...args) => apiService.verifyEmail(...args);
 export const getGoogleAuthUrl = (...args) => apiService.getGoogleAuthUrl(...args);
 export const handleGoogleCallback = (...args) => apiService.handleGoogleCallback(...args);
+export const createAccountFromGuest = (...args) => apiService.createAccountFromGuest(...args);
+export const updateUserPhone = (...args) => apiService.updateUserPhone(...args);
 
 // Books
 export const getBooks = (...args) => apiService.getBooks(...args);
 export const getBook = (...args) => apiService.getBook(...args);
+export const getBookById = (...args) => apiService.getBook(...args); // Alias for getBook
 export const getBookBySlug = (...args) => apiService.getBookBySlug(...args);
 export const createBook = (...args) => apiService.createBook(...args);
 export const updateBook = (...args) => apiService.updateBook(...args);
@@ -894,10 +1337,26 @@ export const searchBooks = (...args) => apiService.searchBooks(...args);
 export const getFeaturedBooks = (...args) => apiService.getFeaturedBooks(...args);
 export const getNewArrivals = (...args) => apiService.getNewArrivals(...args);
 export const getBestSellers = (...args) => apiService.getBestSellers(...args);
+export const getSlideBooks = (...args) => apiService.getSlideBooks(...args);
+export const getSlideStationery = (...args) => apiService.getSlideStationery(...args);
 export const getPopularBooks = (...args) => apiService.getPopularBooks(...args);
 export const uploadBookImage = (...args) => apiService.uploadBookImage(...args);
+export const uploadStationeryImage = (...args) => apiService.uploadStationeryImage(...args);
+export const uploadStationeryImage2 = (...args) => apiService.uploadStationeryImage2(...args);
+export const uploadStationeryImage3 = (...args) => apiService.uploadStationeryImage3(...args);
 export const getBooksCategories = (...args) => apiService.getBooksCategories(...args);
 export const getBooksAuthors = (...args) => apiService.getBooksAuthors(...args);
+
+// Stationery
+export const getStationery = (...args) => apiService.getStationery(...args);
+export const getStationeryItem = (...args) => apiService.getStationeryItem(...args);
+export const getStationeryBySlug = (...args) => apiService.getStationeryBySlug(...args);
+export const createStationery = (...args) => apiService.createStationery(...args);
+export const updateStationery = (...args) => apiService.updateStationery(...args);
+export const deleteStationery = (...args) => apiService.deleteStationery(...args);
+export const getStationeryCategories = (...args) => apiService.getStationeryCategories(...args);
+export const getStationeryReviews = (...args) => apiService.getStationeryReviews(...args);
+export const createStationeryReview = (...args) => apiService.createStationeryReview(...args);
 
 // Categories
 export const getCategories = (...args) => apiService.getCategories(...args);
@@ -934,8 +1393,12 @@ export const getOrder = (...args) => apiService.getOrder(...args);
 export const createOrder = (...args) => apiService.createOrder(...args);
 export const updateOrderStatus = (...args) => apiService.updateOrderStatus(...args);
 export const cancelOrder = (...args) => apiService.cancelOrder(...args);
+export const syncGhnStatus = () => apiService.syncGhnStatus();
 export const getAllOrders = (...args) => apiService.getAllOrders(...args);
 export const getAllOrdersAdmin = (...args) => apiService.getAllOrdersAdmin(...args);
+export const getOrderShippingStatus = (...args) => apiService.getOrderShippingStatus(...args);
+export const getMyOrderShippingStatus = (...args) => apiService.getMyOrderShippingStatus(...args);
+export const getGHNOrderStatus = (...args) => apiService.getMyOrderShippingStatus(...args); // Uses user endpoint, not admin
 
 // Users
 export const getUserProfile = (...args) => apiService.getUserProfile(...args);
@@ -944,6 +1407,7 @@ export const changePassword = (...args) => apiService.changePassword(...args);
 export const getAllUsers = (...args) => apiService.getAllUsers(...args);
 export const getUserById = (...args) => apiService.getUserById(...args);
 export const updateUser = (...args) => apiService.updateUser(...args);
+export const updateUserStatus = (...args) => apiService.updateUserStatus(...args);
 export const deleteUser = (...args) => apiService.deleteUser(...args);
 
 // Addresses
@@ -957,6 +1421,8 @@ export const setDefaultAddress = (...args) => apiService.setDefaultAddress(...ar
 // Reviews
 export const getBookReviews = (...args) => apiService.getBookReviews(...args);
 export const createReview = (...args) => apiService.createReview(...args);
+export const getAllReviews = (...args) => apiService.getAllReviews(...args);
+export const moderateReview = (...args) => apiService.moderateReview(...args);
 export const updateReview = (...args) => apiService.updateReview(...args);
 export const deleteReview = (...args) => apiService.deleteReview(...args);
 
@@ -973,3 +1439,17 @@ export const uploadImage = (...args) => apiService.uploadImage(...args);
 export const getApiInfo = (...args) => apiService.getApiInfo(...args);
 export const getStaticFileUrl = (...args) => apiService.getStaticFileUrl(...args);
 export const getBookCoverUrl = (...args) => apiService.getBookCoverUrl(...args);
+// Slides
+export const getSlideContents = (...args) => apiService.getSlideContents(...args);
+export const getSlideContent = (...args) => apiService.getSlideContent(...args);
+export const updateSlideContent = (...args) => apiService.updateSlideContent(...args);
+
+// Notifications
+export const getNotifications = (...args) => apiService.getNotifications(...args);
+export const getActiveNotification = (...args) => apiService.getActiveNotification(...args);
+export const createNotification = (...args) => apiService.createNotification(...args);
+export const updateNotification = (...args) => apiService.updateNotification(...args);
+export const deleteNotification = (...args) => apiService.deleteNotification(...args);
+export const toggleNotification = (...args) => apiService.toggleNotification(...args);
+export const dismissNotification = (...args) => apiService.dismissNotification(...args);
+export const isNotificationDismissed = (...args) => apiService.isNotificationDismissed(...args);

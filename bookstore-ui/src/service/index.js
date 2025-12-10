@@ -17,7 +17,7 @@ export {
   logout,
   refreshToken,
   getCurrentUser,
-  
+
   // Books
   getBooks,
   getBook,
@@ -30,7 +30,10 @@ export {
   getFeaturedBooks,
   getNewArrivals,
   getBestSellers,
-  
+  getSlideBooks,
+  getSlideStationery,
+  getStationeryBySlug,
+
   // Categories
   getCategories,
   getCategory,
@@ -38,7 +41,7 @@ export {
   createCategory,
   updateCategory,
   deleteCategory,
-  
+
   // Authors
   getAuthors,
   getAuthor,
@@ -46,28 +49,31 @@ export {
   createAuthor,
   updateAuthor,
   deleteAuthor,
-  
+
   // Cart
   getCart,
   addToCart,
   updateCartItem,
   removeFromCart,
   clearCart,
-  
+
   // Wishlist
   getWishlist,
   addToWishlist,
   removeFromWishlist,
   clearWishlist,
-  
+
   // Orders
   getOrders,
   getOrder,
   createOrder,
   updateOrderStatus,
   cancelOrder,
+  syncGhnStatus,
   getAllOrders,
-  
+  getAllOrdersAdmin,
+  getOrderShippingStatus,
+
   // Users
   getUserProfile,
   updateUserProfile,
@@ -75,24 +81,30 @@ export {
   getAllUsers,
   getUserById,
   updateUser,
+  updateUserStatus,
   deleteUser,
-  
+
   // Reviews
   getBookReviews,
+  getAllReviews,
   createReview,
   updateReview,
   deleteReview,
-  
+
   // Analytics
   getDashboardAnalytics,
   getSalesAnalytics,
   getBookAnalytics,
   getUserAnalytics,
-  
+
   // Utility
   healthCheck,
   getVersion,
   uploadImage,
+  // Slides
+  getSlideContents,
+  getSlideContent,
+  updateSlideContent,
 } from './api.js';
 
 // Default export is the main API service

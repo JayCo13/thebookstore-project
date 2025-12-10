@@ -1,14 +1,16 @@
 import FeaturedBooks from './components/home/FeaturedBooks';
-import GenreCategories from './components/home/GenreCategories';
 import BookCollection from './components/home/BookCollection';
 import HeroSection from './components/home/HeroSection';
+import YogaShowcase from './components/home/YogaShowcase';
+import StationeryShowcase from './components/home/StationeryShowcase';
 
 export default function HomePage() {
   return (
-    <div className="pt-20">
+    <div>
       <HeroSection />
       <FeaturedBooks />
-      <GenreCategories />
+      <YogaShowcase />
+      <StationeryShowcase />
       <BookCollection />
     </div>
   );

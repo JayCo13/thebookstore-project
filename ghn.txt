@@ -1,0 +1,67 @@
+curl --location --request POST 'https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/create' \
+                                --header 'Content-Type: application/json' \
+                                --header 'ShopId: from env' \
+                                --header 'Token: from env' \
+                                --data-raw '{
+                                    "payment_type_id": 2,
+                                    "note": "TheBookStore",
+                                    "required_note": "CHOXEMHANG",
+                                    "from_name": "TheBookStore",
+                                    "from_phone": "0987654321",
+                                    "from_address": "35/6 đường TTH15 Tổ 30 KP3A, Quận 12, Thành phố Hồ Chí Minh, Việt Nam",
+                                    "from_ward_name": "Tân Thới Hiệp",
+                                    "from_district_name": "Quận 12",
+                                    "from_province_name": "HCM",
+                                    "to_name": from checkout page,
+                                    "to_phone": "from checkout page",
+                                    "to_address": from checkout page,
+                                    "to_ward_code": from checkout page,
+                                    "to_district_id": from checkout page,
+                                    "cod_amount": from checkout page,
+                                    "weight": 300,
+                                    "length": 25,
+                                    "width": 18,
+                                    "height": 5,
+                                    "service_id": 0,
+                                    "service_type_id":2,
+                                    "items": [
+                                         {
+                                             "name":from checkout page,
+                                             "quantity": from checkout page,
+                                             "price": from checkout page,
+                                             "length": from checkout page,
+                                             "width": from checkout page,
+                                             "height": from checkout page,
+                                             "weight": from checkout page,
+                                         }
+                                         
+                                     ]
+                                }'
+
+
+Response:
+Success 200
+{
+                                    "code": 200,
+                                    "message": "Success",
+                                    "data": 
+                                    {
+                                    "district_encode":"" 
+                                    "expected_delivery_time":"2020-06-03T16:00:00Z" 
+                                    "fee":
+                                    { 
+                                    coupon:0    
+                                    "insurance":11000 
+                                    "main_service":22000 
+                                    "r2s":0 
+                                    "return":0 
+                                    "station_do":0 
+                                    "station_pu":0 
+                                    },
+                                    "order_code":"FFFNL9HH"
+                                    "sort_code":"19-60-06"
+                                    "total_fee":"33000"
+                                    "trans_type":"truck"
+                                    "ward_encode":""
+                                    }
+                                }

@@ -1,184 +1,193 @@
 'use client';
 
-import Image from '../../compat/Image';
 import Link from '../../compat/Link';
 import { useState, useEffect } from 'react';
 import BookCard from './BookCard';
+import BookDetailsModal from '../../../../components/BookDetailsModal';
 import { useCart } from '../../../../hooks/useCart';
 import { useWishlist } from '../../../../hooks/useWishlist';
 import { useToast } from '../../../../contexts/ToastContext.jsx';
+import { getFeaturedBooks, getNewArrivals, getBookCoverUrl, getBookReviews, getStationery } from '../../../../service/api';
+import StationeryCard from './StationeryCard';
+import StationeryDetailsModal from '../../../../components/StationeryDetailsModal.jsx';
+import { formatPrice } from '../../../../utils/currency';
 
-// Local no-op toast for clicks (placeholder)
-function showClickToast(_e, _msg) {}
+// Helper function to format book data from API
+const formatBookData = (book) => {
+  const basePrice = Number(book.price ?? 0);
+  const pct = book.discount_percentage != null ? Number(book.discount_percentage) : null;
+  const amt = book.discount_amount != null ? Number(book.discount_amount) : null;
+  const discountedCalc = book.discounted_price != null
+    ? Number(book.discounted_price)
+    : (pct != null
+      ? Math.max(0, Math.round(basePrice - (basePrice * pct) / 100))
+      : (amt != null ? Math.max(0, Math.round(basePrice - amt)) : null));
+  return {
+    id: book.book_id,
+    title: book.title,
+    author: book.authors && book.authors.length > 0 ? book.authors[0].name : 'Unknown Author',
+    stock_quantity: book.stock_quantity,
+    originalPrice: formatPrice(basePrice),
+    discountedPrice: discountedCalc != null ? formatPrice(discountedCalc) : null,
+    price: discountedCalc != null ? formatPrice(discountedCalc) : formatPrice(basePrice),
+    cover: getBookCoverUrl(book.image_url),
+    images: [
+      book.image_url ? getBookCoverUrl(book.image_url) : null,
+      book.image2_url ? getBookCoverUrl(book.image2_url) : null,
+      book.image3_url ? getBookCoverUrl(book.image3_url) : null,
+    ].filter(Boolean),
+    tag: book.is_best_seller ? "Bán chạy" : book.is_new ? "Mới ra mắt" : (discountedCalc != null ? "Giảm giá" : undefined),
+    isFreeShip: !!book.is_free_ship,
+    description: book.description,
+    pages: book.pages,
+    publishDate: book.publication_date,
+    isbn: book.isbn,
+    genre: book.categories && book.categories.length > 0 ? book.categories[0].name : undefined,
+    category: book.categories && book.categories.length > 0 ? book.categories[0].name : undefined
+  };
+};
 
-const featuredBooks = [
-  {
-    id: 1,
-    title: "The Silent Patient",
-    author: "Alex Michaelides",
-    price: "$16.99",
-    cover: "/assets/yoga_voighe.png",
-    tag: "Bestseller",
-    description: "Alicia Berenson's life is seemingly perfect. A famous painter married to an in-demand fashion photographer, she lives in a grand house with big windows overlooking a park in one of London's most desirable areas. One evening her husband Gabriel returns home late from a fashion shoot, and Alicia shoots him five times in the face, and then never speaks another word.",
-    pages: "336",
-    publishDate: "February 5, 2019",
-    isbn: "978-1250301697",
-    genre: "Psychological Thriller"
-  },
-  {
-    id: 2,
-    title: "Where the Crawdads Sing",
-    author: "Delia Owens",
-    price: "$14.99",
-    cover: "/assets/yoga_voighe.png",
-    tag: "New Release",
-    description: "For years, rumors of the 'Marsh Girl' have haunted Barkley Cove, a quiet town on the North Carolina coast. So in late 1969, when handsome Chase Andrews is found dead, the locals immediately suspect Kya Clark, the so-called Marsh Girl. But Kya is not what they say. Sensitive and intelligent, she has survived for years alone in the marsh that she calls home.",
-    pages: 384,
-    publishDate: "August 14, 2018",
-    isbn: "978-0735219090",
-    genre: "Literary Fiction"
-  },
-  {
-    id: 3,
-    title: "The Midnight Library",
-    author: "Matt Haig",
-    price: "$13.99",
-    cover: "/assets/yoga_voighe.png",
-    description: "Between life and death there is a library, and within that library, the shelves go on forever. Every book provides a chance to try another life you could have lived. To see how things would be if you had made other choices. Would you have done anything different, if you had the chance to undo your regrets?",
-    pages: 304,
-    publishDate: "September 29, 2020",
-    isbn: "978-0525559474",
-    genre: "Contemporary Fiction"
-  },
-  {
-    id: 4,
-    title: "Educated",
-    author: "Tara Westover",
-    price: "$15.99",
-    cover: "/assets/yoga_voighe.png",
-    tag: "Award Winner",
-    description: "Born to survivalists in the mountains of Idaho, Tara Westover was seventeen the first time she set foot in a classroom. Her family was so isolated from mainstream society that there was no one to ensure the children received an education, and no one to intervene when one of Tara's older brothers became violent.",
-    pages: 352,
-    publishDate: "February 20, 2018",
-    isbn: "978-0399590504",
-    genre: "Memoir"
-  }
-];
 
-// Book Details Modal Component
-function BookDetailsModal({ book, isOpen, onClose, addToCart, addToWishlist }) {
-  const { showToast } = useToast();
-  if (!isOpen) return null;
-  
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-fadeIn">
-      <div 
-        className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="relative">
-          {/* Close button */}
-          <button 
-            onClick={onClose}
-            className="absolute top-4 right-4 z-10 p-2 bg-white/80 rounded-full hover:bg-[#008080] hover:text-white transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          
-          <div className="flex flex-col md:flex-row">
-            {/* Book cover */}
-            <div className="md:w-1/3 p-6 flex items-center justify-center">
-              <div className="relative w-full aspect-[2/3] rounded-lg overflow-hidden shadow-lg">
-                <Image 
-                  src={book.cover} 
-                  alt={book.title}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 80vw, 33vw"
-                />
-                {book.tag && (
-                  <div className="absolute top-3 left-3 bg-[#008080] text-white text-xs font-medium px-2 py-1 rounded">
-                    {book.tag}
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Book details */}
-            <div className="md:w-2/3 p-6">
-              <h2 className="text-2xl md:text-3xl font-bold text-[#2D2D2D]">{book.title}</h2>
-              <p className="text-lg text-gray-600 mt-1">{book.author}</p>
-              <div className="mt-4 flex items-center">
-                <span className="text-xl font-bold text-[#008080]">{book.price}</span>
-                <span className="ml-3 px-2 py-1 bg-[#008080]/10 text-[#008080] text-sm rounded">{book.genre}</span>
-              </div>
-              
-              <div className="mt-6">
-                <h3 className="text-lg font-medium text-[#2D2D2D]">About this book</h3>
-                <p className="mt-2 text-gray-600 leading-relaxed">{book.description}</p>
-              </div>
-              
-              <div className="mt-6 grid grid-cols-2 gap-4">
-                <div>
-                  <h4 className="text-sm font-medium text-gray-500">Pages</h4>
-                  <p className="text-[#2D2D2D]">{book.pages}</p>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium text-gray-500">Published</h4>
-                  <p className="text-[#2D2D2D]">{book.publishDate}</p>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium text-gray-500">ISBN</h4>
-                  <p className="text-[#2D2D2D]">{book.isbn}</p>
-                </div>
-              </div>
-              
-              <div className="mt-8 flex space-x-4">
-                <button 
-            className="px-6 py-2 bg-[#008080] text-white rounded-md hover:bg-[#006666] transition-colors"
-            onClick={() => { 
-              addToCart(book); 
-              showToast({ title: 'Added to cart', message: `${book.title}`, type: 'success', actionLabel: 'View Cart', onAction: () => { window.location.href = '/cart'; } });
-            }}
-          >
-            Add to Cart
-          </button>
-                <button
-                  className="px-6 py-2 border border-[#008080] text-[#008080] rounded-md hover:bg-[#008080]/10 transition-colors"
-                  onClick={() => { 
-                    addToWishlist(book); 
-                    showToast({ title: 'Added to wishlist', message: `${book.title}`, type: 'success', actionLabel: 'View Wishlist', onAction: () => { window.location.href = '/wishlist'; } });
-                  }}
-                >
-                  Add to Wishlist
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function FeaturedBooks() {
   const [isClient, setIsClient] = useState(false);
   const [selectedBook, setSelectedBook] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const { addToCart } = useCart();
   const { addToWishlist } = useWishlist();
   const { showToast } = useToast();
 
   useEffect(() => {
     setIsClient(true);
+    fetchFeaturedBooks();
   }, []);
+
+  const fetchFeaturedBooks = async () => {
+    try {
+      setLoading(true);
+      // Fetch books: new arrivals + best sellers
+      const [bestBooks, newBooks] = await Promise.all([
+        getFeaturedBooks().catch(() => []),
+        getNewArrivals().catch(() => [])
+      ]);
+      const booksArr = Array.isArray(bestBooks) ? bestBooks : (bestBooks?.data || []);
+      const newArr = Array.isArray(newBooks) ? newBooks : (newBooks?.data || []);
+      const mergedBooksRaw = [...newArr, ...booksArr];
+      const uniqueBooks = [];
+      const seenBookIds = new Set();
+      for (const b of mergedBooksRaw) {
+        const id = b.book_id ?? b.id;
+        if (!seenBookIds.has(id)) {
+          seenBookIds.add(id);
+          uniqueBooks.push(b);
+        }
+      }
+      const formattedBooks = uniqueBooks.map(formatBookData);
+      const withRatings = await Promise.all(
+        formattedBooks.map(async (b) => {
+          try {
+            const reviews = await getBookReviews(b.id);
+            const list = Array.isArray(reviews) ? reviews : (reviews?.items || []);
+            const total = list.length;
+            const average = total ? (list.reduce((s, r) => s + (r.rating || 0), 0) / total) : null;
+            return { ...b, averageRating: average, totalReviews: total, type: 'book' };
+          } catch (e) {
+            return { ...b, averageRating: null, totalReviews: 0, type: 'book' };
+          }
+        })
+      );
+
+      // Fetch stationery: new + best seller
+      const [newStationeryRes, bestStationeryRes] = await Promise.all([
+        getStationery({ is_new: true, limit: 12 }).catch(() => []),
+        getStationery({ is_best_seller: true, limit: 12 }).catch(() => []),
+      ]);
+      const stNew = Array.isArray(newStationeryRes) ? newStationeryRes : (newStationeryRes?.data || []);
+      const stBest = Array.isArray(bestStationeryRes) ? bestStationeryRes : (bestStationeryRes?.data || []);
+      const stMerged = [...stNew, ...stBest];
+      const seenStIds = new Set();
+      const normalizedStationery = [];
+      for (const it of stMerged) {
+        const sid = it.stationery_id ?? it.id;
+        if (seenStIds.has(sid)) continue;
+        seenStIds.add(sid);
+        const basePrice = Number(it.price ?? 0);
+        const pct = it.discount_percentage != null ? Number(it.discount_percentage) : null;
+        const amt = it.discount_amount != null ? Number(it.discount_amount) : null;
+        const discountedCalc = it.discounted_price != null
+          ? Number(it.discounted_price)
+          : (pct != null
+            ? Math.max(0, Math.round(basePrice - (basePrice * pct) / 100))
+            : (amt != null ? Math.max(0, Math.round(basePrice - amt)) : null));
+        normalizedStationery.push({
+          id: sid,
+          title: it.title || 'Untitled',
+          cover: it.image_url ? getBookCoverUrl(it.image_url) : (it.cover_image ? getBookCoverUrl(it.cover_image) : null),
+          images: [it.image_url, it.image2_url, it.image3_url].filter(Boolean).map(getBookCoverUrl),
+          originalPrice: formatPrice(basePrice),
+          discountedPrice: discountedCalc != null ? formatPrice(discountedCalc) : null,
+          price: discountedCalc != null ? formatPrice(discountedCalc) : formatPrice(basePrice),
+          tag: it.is_best_seller ? 'Bán chạy' : it.is_new ? 'Mới' : (discountedCalc != null ? 'Giảm giá' : undefined),
+          isFreeShip: !!it.is_free_ship,
+          category: Array.isArray(it.categories) && it.categories.length > 0 ? it.categories[0].name : undefined,
+          avg_rating: it.avg_rating ?? 0,
+          review_count: it.review_count ?? 0,
+          type: 'stationery',
+          created_at: it.created_at || null
+        });
+      }
+
+      // Determine "New" by created/published date
+      const NEW_WINDOW_DAYS = 45;
+      const now = Date.now();
+      const isWithinWindow = (dateStr) => {
+        if (!dateStr) return false;
+        const ms = new Date(dateStr).getTime();
+        if (Number.isNaN(ms)) return false;
+        const diffDays = (now - ms) / (1000 * 60 * 60 * 24);
+        return diffDays <= NEW_WINDOW_DAYS;
+      };
+
+      const markNew = (item) => {
+        const created = item.created_at || item.publishDate || null;
+        const isNew = isWithinWindow(created);
+        const tag = isNew ? 'New' : item.tag;
+        return { ...item, isNew, tag, created_at: created };
+      };
+
+      const allItems = [...withRatings.map(markNew), ...normalizedStationery.map(markNew)];
+      // Sort: New first, then by created date desc
+      allItems.sort((a, b) => {
+        if (a.isNew !== b.isNew) return b.isNew - a.isNew;
+        const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return tb - ta;
+      });
+
+      setItems(allItems.slice(0, 9));
+    } catch (err) {
+      console.error('Error fetching featured books:', err);
+      setError('Failed to load featured items');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const openBookDetails = (book) => {
     setSelectedBook(book);
     setIsModalOpen(true);
     // Prevent body scrolling when modal is open
+    document.body.style.overflow = 'hidden';
+  };
+
+  const openItemDetails = (item) => {
+    setSelectedItem(item);
+    setIsItemModalOpen(true);
     document.body.style.overflow = 'hidden';
   };
 
@@ -188,44 +197,127 @@ export default function FeaturedBooks() {
     document.body.style.overflow = 'auto';
   };
 
+  const closeItemDetails = () => {
+    setIsItemModalOpen(false);
+    setSelectedItem(null);
+    document.body.style.overflow = 'auto';
+  };
+
+  if (loading) {
+    return (
+      <section className="py-20 px-6 lg:px-8 max-w-7xl mx-auto">
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#008080]"></div>
+        </div>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="py-20 px-6 lg:px-8 max-w-7xl mx-auto">
+        <div className="text-center text-red-600">
+          <p>{error}</p>
+          <button
+            onClick={fetchFeaturedBooks}
+            className="mt-4 px-4 py-2 bg-[#008080] text-white rounded hover:bg-[#006666] transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="py-20 px-6 lg:px-8 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10">
         <div>
           <h2 className="text-3xl font-bold text-[#2D2D2D] relative inline-block">
-            New & Noteworthy
+            Sản phẩm Mới & Nổi Bật
             <span className="absolute -bottom-2 left-0 w-1/2 h-1 bg-[#008080]"></span>
           </h2>
-          <p className="text-gray-600 mt-4 max-w-xl">Discover our latest collection of captivating stories that will transport you to new worlds.</p>
+          <p className="text-gray-600 mt-4 max-w-xl">Hãy khám phá những cuốn sách mới nhất và nổi bật nhất.</p>
         </div>
-        <Link href="/books" className="mt-4 md:mt-0 text-[#008080] font-medium hover:underline flex items-center group">
-          View all books
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </Link>
+        <div className="flex items-center">
+          <Link href="/books" className="mt-4 md:mt-0 text-[#008080] font-medium hover:underline hover:text-[#006666]  flex items-center group">
+            Xem tất cả Sách
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+          <Link href="/stationery" className="mt-4 ml-5 md:mt-0 text-[#008080] font-medium hover:underline hover:text-[#006666]  flex items-center group">
+            Xem tất cả dụng cụ Yoga
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+        </div>
       </div>
-      
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
-        {featuredBooks.map((book) => (
-          <BookCard
-            key={book.id}
-            book={book}
-            onViewDetails={() => openBookDetails(book)}
-            addToCart={(b) => { addToCart(b); showToast({ title: 'Added to cart', message: `${b.title}`, type: 'success', actionLabel: 'View Cart', onAction: () => { window.location.href = '/cart'; } }); }}
-            addToWishlist={(b) => { addToWishlist(b); showToast({ title: 'Added to wishlist', message: `${b.title}`, type: 'success', actionLabel: 'View Wishlist', onAction: () => { window.location.href = '/wishlist'; } }); }}
-          />
+        {items.map((it) => (
+          it.type === 'book' ? (
+            <BookCard
+              key={`book-${it.id}`}
+              book={it}
+              onViewDetails={() => openBookDetails(it)}
+              addToCart={(b) => {
+                const cartItem = {
+                  id: b.id,
+                  title: b.title,
+                  author: b.author,
+                  cover: b.cover,
+                  price: b.price,
+                  isFreeShip: b.isFreeShip,
+                  quantity: 1
+                };
+                addToCart(cartItem);
+                showToast({ title: 'Added to cart', message: `${b.title}`, type: 'success', actionLabel: 'View Cart', onAction: () => { window.location.href = '/cart'; } });
+              }}
+              addToWishlist={(b) => { addToWishlist(b); showToast({ title: 'Added to wishlist', message: `${b.title}`, type: 'success', actionLabel: 'View Wishlist', onAction: () => { window.location.href = '/wishlist'; } }); }}
+            />
+          ) : (
+            <StationeryCard
+              key={`st-${it.id}`}
+              item={it}
+              onViewDetails={() => openItemDetails(it)}
+              addToCart={(p) => {
+                const cartItem = {
+                  id: p.id,
+                  title: p.title,
+                  cover: p.cover,
+                  price: p.price,
+                  isFreeShip: p.isFreeShip,
+                  stationery_id: p.id,
+                  quantity: 1
+                };
+                addToCart(cartItem);
+                showToast({ title: 'Added to cart', message: `${p.title}`, type: 'success', actionLabel: 'View Cart', onAction: () => { window.location.href = '/cart'; } });
+              }}
+              addToWishlist={(p) => { addToWishlist(p); showToast({ title: 'Added to wishlist', message: `${p.title}`, type: 'success', actionLabel: 'View Wishlist', onAction: () => { window.location.href = '/wishlist'; } }); }}
+            />
+          )
         ))}
       </div>
 
-      {/* Book Details Modal */}
+      {/* Details Modals */}
       {isClient && selectedBook && (
-        <BookDetailsModal 
-          book={selectedBook} 
-          isOpen={isModalOpen} 
+        <BookDetailsModal
+          book={selectedBook}
+          isOpen={isModalOpen}
           onClose={closeBookDetails}
           addToCart={addToCart}
           addToWishlist={addToWishlist}
+        />
+      )}
+      {isClient && selectedItem && (
+        <StationeryDetailsModal
+          item={selectedItem}
+          isOpen={isItemModalOpen}
+          onClose={closeItemDetails}
+          addToCart={(cartItem) => { addToCart(cartItem); }}
+          addToWishlist={(wishItem) => { addToWishlist(wishItem); }}
         />
       )}
     </section>
