@@ -360,7 +360,7 @@ const AdminLogin = () => {
             <label>Email Address</label>
             <Input
               type="email"
-              placeholder="admin@bookstore.com"
+              placeholder=""
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={loading || isBlocked || isBlacklistedEmail}
@@ -374,7 +374,7 @@ const AdminLogin = () => {
             <label>Password</label>
             <Input
               type="password"
-              placeholder="••••••••"
+              placeholder=""
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading || isBlocked || isBlacklistedEmail}
@@ -388,7 +388,7 @@ const AdminLogin = () => {
             <label>Weekly Login Code</label>
             <Input
               type="text"
-              placeholder="000000"
+              placeholder=""
               value={loginCode}
               onChange={(e) => {
                 // Only allow digits and limit to 6 characters

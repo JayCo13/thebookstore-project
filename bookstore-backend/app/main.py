@@ -28,8 +28,7 @@ async def lifespan(app: FastAPI):
         
         # Initialize admin login code system
         from app.services.admin_code_service import initialize_admin_code
-        import asyncio
-        asyncio.run(initialize_admin_code(db))
+        await initialize_admin_code(db)
         
         print("Database initialized successfully")
     except Exception as e:

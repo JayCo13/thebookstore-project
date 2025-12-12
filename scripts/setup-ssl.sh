@@ -1,20 +1,32 @@
 #!/bin/bash
 
-# SSL Setup Script using Let's Encrypt
-# Run this AFTER docker-compose is running (without SSL)
+# SSL Setup Script for tamnguon.com
+# Run this on your VPS
 
-# Configuration
+set -e
+
 DOMAIN="tamnguon.com"
-EMAIL="admin@tamnguon.com"
+EMAIL="thebookstore.vn@gmail.com"  # Change this to your email
 
-echo "=== SSL Certificate Setup for $DOMAIN ==="
+echo "🔐 Setting up SSL for $DOMAIN"
+echo "================================"
 
-# Create certbot directories
-mkdir -p certbot/www certbot/conf
+# Create required directories
+mkdir -p ./certbot/www
+mkdir -p ./certbot/conf
 
-# Step 1: Get initial certificate
-echo "Step 1: Obtaining SSL certificate..."
-docker-compose -f docker-compose.prod.yml run --rm certbot certonly \
+# Step 1: Make sure containers are running
+echo ""
+echo "📦 Starting services..."
+docker compose -f docker-compose.prod.yml up -d
+
+# Wait for nginx to be ready
+sleep 5
+
+# Step 2: Get SSL certificate
+echo ""
+echo "🔑 Obtaining SSL certificate..."
+docker compose -f docker-compose.prod.yml run --rm certbot certonly \
     --webroot \
     --webroot-path=/var/www/certbot \
     --email $EMAIL \
@@ -23,18 +35,22 @@ docker-compose -f docker-compose.prod.yml run --rm certbot certonly \
     -d $DOMAIN \
     -d www.$DOMAIN
 
-# Step 2: Update nginx config
-echo "Step 2: Update nginx/nginx.conf:"
-echo "  1. Replace 'yourdomain.com' with your actual domain"
-echo "  2. Uncomment the HTTPS server block"
-echo "  3. Uncomment the HTTP to HTTPS redirect"
-
-# Step 3: Reload nginx
-echo "Step 3: Reloading nginx..."
-docker-compose -f docker-compose.prod.yml exec nginx nginx -s reload
-
-echo ""
-echo "=== SSL Setup Complete ==="
-echo "Your site should now be available at https://$DOMAIN"
-echo ""
-echo "Certificate will auto-renew via certbot container."
+# Step 3: Check if certificate was obtained
+if [ -d "./certbot/conf/live/$DOMAIN" ]; then
+    echo ""
+    echo "✅ SSL certificate obtained successfully!"
+    echo ""
+    echo "📝 Now you need to:"
+    echo "   1. Update nginx.conf to enable HTTPS (already done if you pulled latest)"
+    echo "   2. Restart nginx: docker compose -f docker-compose.prod.yml restart nginx"
+    echo ""
+    echo "🔄 Certificate will auto-renew via the certbot container"
+else
+    echo ""
+    echo "❌ Failed to obtain certificate. Check the logs above for errors."
+    echo ""
+    echo "Common issues:"
+    echo "  - DNS not pointing to this server yet (A record needed)"
+    echo "  - Port 80 not accessible from internet"
+    echo "  - Domain not resolving correctly"
+fi

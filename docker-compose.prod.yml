@@ -40,9 +40,7 @@ services:
 
   # FastAPI Backend
   backend:
-    build:
-      context: ./bookstore-backend
-      dockerfile: Dockerfile
+    image: jayden1110/bookstore-backend:latest
     container_name: bookstore-backend
     restart: always
     environment:
@@ -83,14 +81,7 @@ services:
 
   # React Frontend (built for production)
   frontend:
-    build:
-      context: ./bookstore-ui
-      dockerfile: Dockerfile
-      args:
-        - REACT_APP_API_URL=${REACT_APP_API_URL}
-        - REACT_APP_GHN_API_TOKEN=${REACT_APP_GHN_API_TOKEN}
-        - REACT_APP_GHN_SHOP_ID=${REACT_APP_GHN_SHOP_ID}
-        - REACT_APP_GHN_API_BASE_URL=${REACT_APP_GHN_API_BASE_URL:-https://online-gateway.ghn.vn/shiip/public-api}
+    image: jayden1110/bookstore-frontend:latest
     container_name: bookstore-frontend
     restart: always
     depends_on:
