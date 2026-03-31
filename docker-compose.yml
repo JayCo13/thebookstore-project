@@ -70,6 +70,7 @@ services:
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-http://localhost:8000/api/v1/auth/google/callback}
     volumes:
       - backend_uploads:/app/uploads
       - backend_chroma:/app/chroma_db_store
@@ -84,24 +85,8 @@ services:
     networks:
       - bookstore-network
 
-  # React Frontend
-  frontend:
-    build:
-      context: ./bookstore-ui
-      dockerfile: Dockerfile
-      args:
-        - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
-        - REACT_APP_GHN_API_TOKEN=${REACT_APP_GHN_API_TOKEN}
-        - REACT_APP_GHN_SHOP_ID=${REACT_APP_GHN_SHOP_ID}
-        - REACT_APP_GHN_API_BASE_URL=${REACT_APP_GHN_API_BASE_URL:-https://online-gateway.ghn.vn/shiip/public-api}
-    container_name: bookstore-frontend
-    restart: unless-stopped
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
-    networks:
-      - bookstore-network
+  # Frontend is now on Netlify (or run locally with `cd bookstore-ui && npm start`)
+  # Removed from Docker to simplify development
 
 volumes:
   mysql_data:

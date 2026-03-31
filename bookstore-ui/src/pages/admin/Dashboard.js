@@ -644,8 +644,8 @@ const AddBookButton = () => {
   );
 };
 
-// Backend API base URL
-const API_BASE_URL = 'http://localhost:8000';
+// Backend API base URL - use environment variable or fallback to localhost
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 // Zalo OA Connection Button with status check
 const ZaloConnectButton = ({ status, setStatus }) => {

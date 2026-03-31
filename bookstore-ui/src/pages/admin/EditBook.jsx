@@ -26,13 +26,12 @@ const EditBook = () => {
     author_ids: [],
     category_ids: [],
     // Position fields
-    is_best_seller: false,
-    is_new: false,
     is_discount: false,
     is_slide1: false,
     is_slide2: false,
     is_slide3: false,
     is_free_ship: false,
+    is_featured: false,
     // Discount fields
     discount_percentage: '',
     discount_amount: '',
@@ -350,13 +349,13 @@ const EditBook = () => {
           length: book.length?.toString() || '',
           weight: book.weight?.toString() || '',
           // Position fields
-          is_best_seller: book.is_best_seller || false,
-          is_new: book.is_new || false,
           is_discount: book.is_discount || false,
           is_slide1: book.is_slide1 || false,
           is_slide2: book.is_slide2 || false,
           is_slide3: book.is_slide3 || false,
           is_free_ship: book.is_free_ship || false,
+          is_featured: book.is_featured || false,
+          display_order: book.display_order?.toString() || '0',
           // Discount fields
           discount_percentage: book.discount_percentage?.toString() || '',
           discount_amount: book.discount_amount?.toString() || '',
@@ -815,18 +814,19 @@ const EditBook = () => {
         length: form.length ? parseFloat(form.length) : null,
         weight: form.weight ? parseFloat(form.weight) : null,
         // Position fields
-        is_best_seller: form.is_best_seller,
-        is_new: form.is_new,
         is_discount: form.is_discount,
         is_slide1: form.is_slide1,
         is_slide2: form.is_slide2,
         is_slide3: form.is_slide3,
         is_free_ship: form.is_free_ship,
+        is_featured: form.is_featured,
+        display_order: form.display_order ? parseInt(form.display_order) : 0,
         // Discount fields
         discount_percentage: form.discount_percentage ? parseFloat(form.discount_percentage) : null,
         discount_amount: form.discount_amount ? parseFloat(form.discount_amount) : null,
         discounted_price: form.discounted_price ? parseFloat(form.discounted_price) : null
       };
+
 
       // Update the book
       const updatedBook = await apiService.updateBook(bookId, bookData);
@@ -1212,26 +1212,6 @@ const EditBook = () => {
                 <label style={{ display: 'flex', alignItems: 'center', fontSize: '14px' }}>
                   <input
                     type="checkbox"
-                    name="is_best_seller"
-                    checked={form.is_best_seller}
-                    onChange={handleChange}
-                    style={{ marginRight: '6px' }}
-                  />
-                  Best Seller
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', fontSize: '14px' }}>
-                  <input
-                    type="checkbox"
-                    name="is_new"
-                    checked={form.is_new}
-                    onChange={handleChange}
-                    style={{ marginRight: '6px' }}
-                  />
-                  New Release
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', fontSize: '14px' }}>
-                  <input
-                    type="checkbox"
                     name="is_discount"
                     checked={form.is_discount}
                     onChange={handleChange}
@@ -1279,6 +1259,29 @@ const EditBook = () => {
                   />
                   🚚 Miễn phí vận chuyển
                 </label>
+                <label style={{ display: 'flex', alignItems: 'center', fontSize: '14px', background: '#e0f7fa', padding: '4px 8px', borderRadius: '4px', border: '1px solid #00838f' }}>
+                  <input
+                    type="checkbox"
+                    name="is_featured"
+                    checked={form.is_featured}
+                    onChange={handleChange}
+                    style={{ marginRight: '6px' }}
+                  />
+                  ⭐ Nổi Bật (Trang Chủ)
+                </label>
+              </div>
+              <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <label style={{ fontSize: '14px', fontWeight: '500' }}>Thứ tự hiển thị:</label>
+                <Input
+                  name="display_order"
+                  type="number"
+                  min="0"
+                  value={form.display_order}
+                  onChange={handleChange}
+                  placeholder="0"
+                  style={{ width: '80px' }}
+                />
+                <span style={{ fontSize: '12px', color: '#888' }}>Số nhỏ hơn hiển thị trước (0 = mặc định)</span>
               </div>
             </div>
 

@@ -27,7 +27,7 @@ router = APIRouter(prefix="/books", tags=["Books"])
 @router.get("/", response_model=List[BookResponse])
 async def get_books(
     skip: int = Query(0, ge=0),
-    limit: int = Query(10, ge=1, le=100),
+    limit: int = Query(10, ge=1, le=1000),
     category_id: Optional[int] = None,
     author_id: Optional[int] = None,
     search: Optional[str] = None,
@@ -63,7 +63,7 @@ async def get_books(
             Book.full_description.ilike(search_term)
         )
     
-    books = query.offset(skip).limit(limit).all()
+    books = query.order_by(Book.display_order.asc(), Book.book_id.desc()).offset(skip).limit(limit).all()
     
     # Convert to response format and add sales data
     books_response = []
@@ -101,7 +101,7 @@ async def get_popular_books(
     # Simply return active books - frontend will handle popularity logic
     books = db.query(Book).filter(
         Book.is_active == True
-    ).limit(limit).all()
+    ).order_by(Book.display_order.asc(), Book.book_id.desc()).limit(limit).all()
     
     books_response = [BookResponse.from_orm(book) for book in books]
     
@@ -112,23 +112,66 @@ async def get_popular_books(
 
 
 @router.get("/best-sellers", response_model=List[BookResponse])
-async def get_best_seller_books(
-    limit: int = Query(10, ge=1, le=50),
+async def get_best_sellers(
+    limit: int = Query(9, ge=1, le=50),
     db: Session = Depends(get_db),
     redis: Redis = Depends(get_redis)
 ):
-    """Get books marked as best sellers - simplified to return active books, frontend will handle filtering."""
+    """Get top best-selling books ordered by total quantity sold."""
+    cache = RedisCache(redis)
+    cache_key = f"books:best-sellers:{limit}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return cached
+
+    # Subquery: sum of order_item quantities per book
+    sold_sub = (
+        db.query(
+            OrderItem.book_id,
+            func.coalesce(func.sum(OrderItem.quantity), 0).label("total_sold")
+        )
+        .filter(OrderItem.book_id.isnot(None))
+        .group_by(OrderItem.book_id)
+        .subquery()
+    )
+
+    books = (
+        db.query(Book, sold_sub.c.total_sold)
+        .outerjoin(sold_sub, Book.book_id == sold_sub.c.book_id)
+        .filter(Book.is_active == True)
+        .order_by(func.coalesce(sold_sub.c.total_sold, 0).desc(), Book.book_id.desc())
+        .limit(limit)
+        .all()
+    )
+
+    resp = []
+    for book, total_sold in books:
+        r = BookResponse.from_orm(book)
+        r.total_sold = int(total_sold or 0)
+        resp.append(r)
+
+    await cache.set(cache_key, [r.dict() for r in resp], 600)
+    return resp
+
+
+@router.get("/featured", response_model=List[BookResponse])
+async def get_featured_books_endpoint(
+    limit: int = Query(20, ge=1, le=50),
+    db: Session = Depends(get_db),
+    redis: Redis = Depends(get_redis)
+):
+    """Get books marked as featured by admin, ordered by display_order."""
     cache = RedisCache(redis)
     
-    cache_key = f"books:best_sellers_simple:{limit}"
+    cache_key = f"books:featured:{limit}"
     cached_books = await cache.get(cache_key)
     if cached_books:
         return cached_books
     
-    # Simply return active books - frontend will handle best-seller filtering
     books = db.query(Book).filter(
-        Book.is_active == True
-    ).limit(limit).all()
+        Book.is_active == True,
+        Book.is_featured == True
+    ).order_by(Book.display_order.asc(), Book.book_id.desc()).limit(limit).all()
     
     books_response = [BookResponse.from_orm(book) for book in books]
     
@@ -137,32 +180,6 @@ async def get_best_seller_books(
     
     return books_response
 
-
-@router.get("/new-releases", response_model=List[BookResponse])
-async def get_new_release_books(
-    limit: int = Query(10, ge=1, le=50),
-    db: Session = Depends(get_db),
-    redis: Redis = Depends(get_redis)
-):
-    """Get recently published books - simplified to return active books, frontend will handle sorting."""
-    cache = RedisCache(redis)
-    
-    cache_key = f"books:new_releases_simple:{limit}"
-    cached_books = await cache.get(cache_key)
-    if cached_books:
-        return cached_books
-    
-    # Simply return active books - frontend will handle new release sorting
-    books = db.query(Book).filter(
-        Book.is_active == True
-    ).limit(limit).all()
-    
-    books_response = [BookResponse.from_orm(book) for book in books]
-    
-    # Cache for 30 minutes
-    await cache.set(cache_key, [book.dict() for book in books_response], 1800)
-    
-    return books_response
 
 
 @router.get("/discounted", response_model=List[BookResponse])
@@ -182,7 +199,7 @@ async def get_discounted_books(
     books = db.query(Book).filter(
         Book.is_active == True,
         Book.is_discount == True
-    ).limit(limit).all()
+    ).order_by(Book.display_order.asc(), Book.book_id.desc()).limit(limit).all()
     
     books_response = [BookResponse.from_orm(book) for book in books]
     
@@ -219,7 +236,7 @@ async def get_slide_books(
     books = db.query(Book).filter(
         Book.is_active == True,
         slide_field == True
-    ).limit(limit).all()
+    ).order_by(Book.display_order.asc(), Book.book_id.desc()).limit(limit).all()
     
     books_response = [BookResponse.from_orm(book) for book in books]
     
@@ -408,8 +425,13 @@ async def update_book(
             categories = db.query(Category).filter(Category.category_id.in_(book_update.category_ids)).all()
             db_book.categories = categories
         
+        # If is_discount is explicitly set to False, clear all discount fields
+        if 'is_discount' in update_data and update_data['is_discount'] == False:
+            db_book.discount_percentage = None
+            db_book.discount_amount = None
+            db_book.discounted_price = None
         # Recalculate discounted price if discount fields were updated
-        if any(field in update_data for field in ['discount_percentage', 'discount_amount', 'price']):
+        elif any(field in update_data for field in ['discount_percentage', 'discount_amount', 'price']):
             db_book.calculate_discounted_price()
         
         db.commit()

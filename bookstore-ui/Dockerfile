@@ -16,7 +16,7 @@ ENV REACT_APP_GHN_SHOP_ID=$REACT_APP_GHN_SHOP_ID
 ENV REACT_APP_GHN_API_BASE_URL=$REACT_APP_GHN_API_BASE_URL
 
 # Copy package files
-COPY package*.json ./
+COPY package.json package-lock.json ./
 
 # Install dependencies
 RUN npm ci --legacy-peer-deps

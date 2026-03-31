@@ -59,9 +59,9 @@ export default function BookCard({ book, onViewDetails, addToCart, addToWishlist
         {/* Tag badge - impressive ribbon style */}
         {book.tag && (
           <span className={`absolute top-3 left-3 text-white text-sm font-bold px-3 py-1.5 rounded-lg shadow-lg ${book.tag === 'Bán chạy' ? 'bg-gradient-to-r from-rose-500 to-pink-500' :
-              book.tag === 'Mới ra mắt' || book.tag === 'Mới' ? 'bg-gradient-to-r from-blue-500 to-cyan-500' :
-                book.tag === 'Giảm giá' ? 'bg-gradient-to-r from-purple-500 to-indigo-500' :
-                  'bg-gradient-to-r from-teal-500 to-emerald-500'
+            book.tag === 'Mới ra mắt' || book.tag === 'Mới' ? 'bg-gradient-to-r from-blue-500 to-cyan-500' :
+              book.tag === 'Giảm giá' ? 'bg-gradient-to-r from-purple-500 to-indigo-500' :
+                'bg-gradient-to-r from-teal-500 to-emerald-500'
             }`}>
             {book.tag}
           </span>
@@ -158,7 +158,7 @@ export default function BookCard({ book, onViewDetails, addToCart, addToWishlist
             <span className="text-[#008080] font-semibold">{book.price}</span>
           )}
           <Link
-            to={`/book/${slugify(book.title)}`}
+            to={`/book/${book.slug}`}
             className="text-sm text-[#008080] hover:text-[#006666] font-medium transition-colors"
           >
             Xem chi tiết →

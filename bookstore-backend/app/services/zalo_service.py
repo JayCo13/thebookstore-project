@@ -205,7 +205,14 @@ class ZaloService:
         """
         Refresh access token using refresh_token.
         Returns new access_token or None on failure.
+        
+        Per Zalo OAuth v4 docs:
+        - Endpoint: https://oauth.zaloapp.com/v4/access_token
+        - Access token validity: ~1 hour (3600 seconds)
+        - Refresh token: single-use, max 30 days validity
         """
+        logger.info("Attempting Zalo token refresh for OA ID: %s", token_record.oa_id)
+        
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
             "secret_key": self.app_secret
@@ -219,42 +226,53 @@ class ZaloService:
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
-                    f"{self.oauth_url}/oa/access_token",  # Note: /oa/access_token for refresh
+                    f"{self.oauth_url}/oa/access_token",  # /oa/access_token for Official Account tokens
                     headers=headers,
                     data=data,
                     timeout=30.0
                 )
+            
+            logger.info("Zalo refresh response status: %s", resp.status_code)
             
             if resp.status_code != 200:
                 logger.error("Zalo token refresh failed: status=%s body=%s", resp.status_code, resp.text)
                 return None
             
             result = resp.json()
+            logger.info("Zalo refresh response: %s", result)
             
             if "access_token" not in result:
-                error_msg = result.get("error_description", result.get("message", "Unknown error"))
-                logger.error("Zalo token refresh error: %s", error_msg)
+                error_code = result.get("error", "unknown")
+                error_msg = result.get("error_description", result.get("error_name", "Unknown error"))
+                logger.error("Zalo token refresh error: code=%s msg=%s", error_code, error_msg)
                 return None
             
             # Update tokens in database
-            expires_in = int(result.get("expires_in", 90000))
+            # Access token: typically 1 hour (3600 seconds)
+            expires_in = int(result.get("expires_in", 3600))
+            # Refresh token: use API response if available, otherwise default 30 days
+            refresh_expires_in = int(result.get("refresh_token_expires_in", 2592000))  # 30 days in seconds
+            
             token_record.access_token = result["access_token"]
-            token_record.refresh_token = result["refresh_token"]  # New refresh token
+            token_record.refresh_token = result["refresh_token"]  # IMPORTANT: New single-use refresh token
             token_record.expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
-            token_record.refresh_expires_at = datetime.utcnow() + timedelta(days=90)
+            token_record.refresh_expires_at = datetime.utcnow() + timedelta(seconds=refresh_expires_in)
             db.commit()
             
-            logger.info("Zalo tokens refreshed for OA ID: %s", token_record.oa_id)
+            logger.info("Zalo tokens refreshed successfully for OA ID: %s (access expires in %s sec, refresh expires in %s sec)", 
+                       token_record.oa_id, expires_in, refresh_expires_in)
             return result["access_token"]
             
         except Exception as e:
-            logger.error("Error refreshing Zalo token: %s", e)
+            logger.error("Error refreshing Zalo token: %s", e, exc_info=True)
             return None
 
     async def get_valid_token(self, db: Session) -> Optional[str]:
         """
         Get a valid access token, automatically refreshing if needed.
         Returns access_token or None if no valid token available.
+        
+        Per Zalo v4: access tokens last ~1 hour, so we refresh if expiring within 10 minutes.
         """
         # Get the first non-pending token
         token_record = db.query(ZaloToken).filter(ZaloToken.oa_id != "pending").first()
@@ -268,9 +286,9 @@ class ZaloService:
             logger.error("Zalo refresh token expired. Please re-authorize the application.")
             return None
         
-        # Refresh if access token expires within 1 hour (to avoid interrupting user experience)
-        if datetime.utcnow() + timedelta(hours=1) >= token_record.expires_at:
-            logger.info("Zalo access token expiring within 1 hour, refreshing proactively...")
+        # Refresh if access token expires within 10 minutes (tokens last ~1 hour)
+        if datetime.utcnow() + timedelta(minutes=10) >= token_record.expires_at:
+            logger.info("Zalo access token expiring within 10 minutes, refreshing proactively...")
             return await self.refresh_access_token(db, token_record)
         
         return token_record.access_token

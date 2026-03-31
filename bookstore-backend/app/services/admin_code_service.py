@@ -96,13 +96,13 @@ async def rotate_code_if_needed(db: Session) -> bool:
 
 
 async def initialize_admin_code(db: Session):
-    """Initialize admin login code system on first run."""
+    """Initialize admin login code system on startup, or regenerate if expired."""
     try:
-        # Check if any code exists
-        existing_code = db.query(AdminLoginCode).first()
+        # Check if there's a valid (active AND not expired) code
+        current_code = get_current_code(db)
         
-        if not existing_code:
-            logger.info("No admin login code found. Generating initial code...")
+        if not current_code:
+            logger.info("No valid admin login code found. Generating new code...")
             await generate_weekly_code(db)
             
     except Exception as e:

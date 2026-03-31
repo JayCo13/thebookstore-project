@@ -15,8 +15,7 @@ const priceRanges = [
 
 const positionOptions = [
   { label: 'None', value: 'none' },
-  { label: 'Best Seller', value: 'is_best_seller' },
-  { label: 'New Release', value: 'is_new' },
+  { label: 'Nổi Bật', value: 'is_featured' },
   { label: 'Slide 1', value: 'is_slide1' },
   { label: 'Slide 2', value: 'is_slide2' },
   { label: 'Slide 3', value: 'is_slide3' },
@@ -136,8 +135,7 @@ const StationeryProducts = () => {
   const handlePositionChange = async (stationeryId, positionType) => {
     try {
       const updateData = {
-        is_best_seller: false,
-        is_new: false,
+        is_featured: false,
         is_slide1: false,
         is_slide2: false,
         is_slide3: false,
@@ -156,8 +154,7 @@ const StationeryProducts = () => {
   };
 
   const getCurrentPosition = (item) => {
-    if (item.is_best_seller) return 'is_best_seller';
-    if (item.is_new) return 'is_new';
+    if (item.is_featured) return 'is_featured';
     if (item.is_slide1) return 'is_slide1';
     if (item.is_slide2) return 'is_slide2';
     if (item.is_slide3) return 'is_slide3';

@@ -5,7 +5,7 @@ import StationeryDetailsModal from '../../../../components/StationeryDetailsModa
 import { useCart } from '../../../../hooks/useCart.js';
 import { useWishlist } from '../../../../hooks/useWishlist.js';
 import { useToast } from '../../../../contexts/ToastContext.jsx';
-import { getStationery, getBookCoverUrl, getStationeryReviews, getStationeryCategories } from '../../../../service/api.js';
+import { getLatestStationery, getBookCoverUrl, getStationeryReviews, getStationeryCategories } from '../../../../service/api.js';
 import { formatPrice } from '../../../../utils/currency.js';
 
 const formatItem = (item) => {
@@ -32,8 +32,9 @@ const formatItem = (item) => {
     originalPrice: formatPrice(basePrice),
     discountedPrice: discountedCalc != null ? formatPrice(discountedCalc) : null,
     price: discountedCalc != null ? formatPrice(discountedCalc) : formatPrice(basePrice),
-    tag: item.is_best_seller ? 'Best Seller' : item.is_new ? 'New' : (item.is_discount ? 'Discount' : null),
+    tag: item.is_discount ? 'Giảm giá' : (discountedCalc != null ? 'Giảm giá' : null),
     stock_quantity: item.stock_quantity || 0,
+    display_order: item.display_order ?? 0,
   };
 };
 
@@ -58,18 +59,17 @@ export default function YogaShowcase() {
         const categoriesResponse = await getStationeryCategories();
         const allCategories = Array.isArray(categoriesResponse) ? categoriesResponse : (categoriesResponse?.data || []);
         const yogaCats = allCategories.filter(cat => cat.name.toLowerCase().includes('yoga'));
-        const yogaIds = yogaCats.map(cat => cat.category_id);
 
-        if (yogaIds.length === 0) {
+        if (yogaCats.length === 0) {
           setItems([]);
           setLoading(false);
           return;
         }
 
-        // Fetch items from all Yoga categories
+        // Fetch featured stationery for each yoga category and merge
         const allYogaItems = [];
-        for (const categoryId of yogaIds) {
-          const res = await getStationery({ skip: 0, limit: 24, category_id: categoryId });
+        for (const yogaCat of yogaCats) {
+          const res = await getLatestStationery({ limit: 9, category_id: yogaCat.category_id });
           const raw = Array.isArray(res) ? res : (res?.data || []);
           allYogaItems.push(...raw);
         }
@@ -79,8 +79,8 @@ export default function YogaShowcase() {
           index === self.findIndex(t => t.stationery_id === item.stationery_id)
         );
 
-        // Pick newest 4 items
-        const formatted = uniqueItems.map(formatItem).sort((a, b) => b.id - a.id).slice(0, 4);
+        // Format (already sorted by display_order from backend)
+        const formatted = uniqueItems.map(formatItem).slice(0, 9);
 
         // Compute rating & count for display
         const withRatings = await Promise.all(

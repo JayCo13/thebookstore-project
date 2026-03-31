@@ -111,7 +111,7 @@ export default function BookDetailsModal({ book, isOpen, onClose, addToCart, add
           <div className="flex items-center gap-3 shrink-0">
             {/* Audio Sample Badge */}
             <Link
-              href={`/book/${slugify(book.title)}`}
+              href={`/book/${book.slug}`}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -164,7 +164,7 @@ export default function BookDetailsModal({ book, isOpen, onClose, addToCart, add
                 className="object-cover"
                 sizes="300px"
               />
-              {(book.tag || book.is_best_seller) && (
+              {(book.tag) && (
                 <div className="absolute top-3 left-3 bg-emerald-600 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg">
                   {book.tag || 'Bestseller'}
                 </div>
@@ -176,7 +176,7 @@ export default function BookDetailsModal({ book, isOpen, onClose, addToCart, add
           <div className="lg:col-span-3 space-y-6">
             {/* Title and Author */}
             <div className="space-y-3">
-              <h1 className="text-3xl font-bold text-center text-gray-900 leading-tight">
+              <h1 className="text-3xl font-bold text-center text-gray-900 leading-tight line-clamp-2 overflow-hidden" title={book.title}>
                 Tựa sách: {book.title}
               </h1>
               {avgRating !== null && (
@@ -321,7 +321,7 @@ export default function BookDetailsModal({ book, isOpen, onClose, addToCart, add
 
             {/* View Details Link */}
             <Link
-              href={`/book/${slugify(book.title)}`}
+              href={`/book/${book.slug}`}
               onClick={onClose}
               className="block w-full text-center px-6 py-3 bg-gray-900 text-white font-semibold rounded-xl hover:bg-gray-800 transition-all duration-200 hover:shadow-lg text-base"
             >

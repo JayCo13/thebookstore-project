@@ -6,8 +6,12 @@
  * It includes error handling, request/response interceptors, and endpoints for all bookstore operations.
  */
 
-// Base configuration
-const BASE_URL = 'http://localhost:8000';
+// Base configuration - use environment variable or fallback to localhost for development
+let BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+// Force HTTPS in production to prevent mixed content errors
+if (BASE_URL && !BASE_URL.includes('localhost') && BASE_URL.startsWith('http://')) {
+  BASE_URL = BASE_URL.replace('http://', 'https://');
+}
 const API_VERSION = '/api/v1';
 const FULL_BASE_URL = `${BASE_URL}${API_VERSION}`;
 
@@ -371,7 +375,7 @@ class ApiService {
    * Get all books with pagination and filters
    */
   async getBooks(params = {}) {
-    return this.client.get('/books', params);
+    return this.client.get('/books/', params);
   }
 
   /**
@@ -392,7 +396,7 @@ class ApiService {
    * Create new book (Admin only)
    */
   async createBook(bookData) {
-    return this.client.post('/books', bookData);
+    return this.client.post('/books/', bookData);
   }
 
   /**
@@ -427,21 +431,21 @@ class ApiService {
    * Get featured books
    */
   async getFeaturedBooks() {
-    return this.client.get('/books/best-sellers');
+    return this.client.get('/books/featured');
   }
 
   /**
-   * Get new arrivals
+   * Get featured stationery items
    */
-  async getNewArrivals() {
-    return this.client.get('/books/new-arrivals');
+  async getFeaturedStationery(params = {}) {
+    return this.client.get('/stationery/featured', params);
   }
 
   /**
-   * Get best sellers
+   * Get latest (newest) stationery items sorted by creation date
    */
-  async getBestSellers() {
-    return this.client.get('/books/best-sellers');
+  async getLatestStationery(params = {}) {
+    return this.client.get('/stationery/latest', params);
   }
 
   /**
@@ -483,7 +487,7 @@ class ApiService {
    * Get stationery items for specific slide
    */
   async getSlideStationery(slideNumber, limit = 10) {
-    return this.client.get('/stationery', { slide_number: slideNumber, limit });
+    return this.client.get('/stationery/', { slide_number: slideNumber, limit });
   }
 
   // ==================== Slides (Hero Content) ====================
@@ -534,7 +538,7 @@ class ApiService {
    * Get all stationery with pagination and filters
    */
   async getStationery(params = {}) {
-    return this.client.get('/stationery', params);
+    return this.client.get('/stationery/', params);
   }
 
   /**
@@ -555,7 +559,7 @@ class ApiService {
    * Create stationery (Admin only)
    */
   async createStationery(data) {
-    return this.client.post('/stationery', data);
+    return this.client.post('/stationery/', data);
   }
 
   /**
@@ -736,7 +740,7 @@ class ApiService {
    * Get all categories
    */
   async getCategories() {
-    return this.client.get('/categories');
+    return this.client.get('/categories/');
   }
 
   /**
@@ -757,7 +761,7 @@ class ApiService {
    * Create category (Admin only)
    */
   async createCategory(categoryData) {
-    return this.client.post('/categories', categoryData);
+    return this.client.post('/categories/', categoryData);
   }
 
   /**
@@ -780,7 +784,7 @@ class ApiService {
    * Get all authors
    */
   async getAuthors() {
-    return this.client.get('/authors');
+    return this.client.get('/authors/');
   }
 
   /**
@@ -801,7 +805,7 @@ class ApiService {
    * Create author (Admin only)
    */
   async createAuthor(authorData) {
-    return this.client.post('/authors', authorData);
+    return this.client.post('/authors/', authorData);
   }
 
   /**
@@ -824,7 +828,7 @@ class ApiService {
    * Get user's cart
    */
   async getCart() {
-    return this.client.get('/cart');
+    return this.client.get('/cart/');
   }
 
   /**
@@ -852,7 +856,7 @@ class ApiService {
    * Clear cart
    */
   async clearCart() {
-    return this.client.delete('/cart');
+    return this.client.delete('/cart/');
   }
 
   // ==================== Wishlist ====================
@@ -891,7 +895,7 @@ class ApiService {
    * Get user's orders
    */
   async getOrders(params = {}) {
-    return this.client.get('/orders', params);
+    return this.client.get('/orders/', params);
   }
 
   /**
@@ -911,7 +915,7 @@ class ApiService {
     console.log('Request Body:', JSON.stringify(orderData, null, 2));
     console.log('=== END API SERVICE DEBUG ===');
 
-    const result = await this.client.post('/orders', orderData);
+    const result = await this.client.post('/orders/', orderData);
 
     console.log('=== API SERVICE - CREATE ORDER RESPONSE ===');
     console.log('Response:', JSON.stringify(result, null, 2));
@@ -1036,7 +1040,7 @@ class ApiService {
    * Get all user addresses
    */
   async getAddresses() {
-    return this.client.get('/addresses');
+    return this.client.get('/addresses/');
   }
 
   /**
@@ -1050,7 +1054,7 @@ class ApiService {
    * Create new address
    */
   async createAddress(addressData) {
-    return this.client.post('/addresses', addressData);
+    return this.client.post('/addresses/', addressData);
   }
 
   /**
@@ -1109,7 +1113,7 @@ class ApiService {
    * Optional params: { limit, offset }
    */
   async getAllReviews(params = {}) {
-    return this.client.get('/reviews', params);
+    return this.client.get('/reviews/', params);
   }
 
   /**
@@ -1201,7 +1205,7 @@ class ApiService {
    * Get API version
    */
   async getVersion() {
-    return this.client.get('/version');
+    return this.client.get('/version/');
   }
 
   /**
@@ -1253,14 +1257,14 @@ class ApiService {
    * Get all notifications (Admin only)
    */
   async getNotifications() {
-    return this.client.get('/notifications');
+    return this.client.get('/notifications/');
   }
 
   /**
    * Create notification (Admin only)
    */
   async createNotification(notificationData) {
-    return this.client.post('/notifications', notificationData);
+    return this.client.post('/notifications/', notificationData);
   }
 
   /**
@@ -1335,8 +1339,9 @@ export const deleteBook = (...args) => apiService.deleteBook(...args);
 export const uploadBookCover = (...args) => apiService.uploadBookCover(...args);
 export const searchBooks = (...args) => apiService.searchBooks(...args);
 export const getFeaturedBooks = (...args) => apiService.getFeaturedBooks(...args);
-export const getNewArrivals = (...args) => apiService.getNewArrivals(...args);
-export const getBestSellers = (...args) => apiService.getBestSellers(...args);
+export const getFeaturedStationery = (...args) => apiService.getFeaturedStationery(...args);
+export const getBestSellerBooks = (...args) => apiService.getBestSellerBooks(...args);
+export const getLatestStationery = (...args) => apiService.getLatestStationery(...args);
 export const getSlideBooks = (...args) => apiService.getSlideBooks(...args);
 export const getSlideStationery = (...args) => apiService.getSlideStationery(...args);
 export const getPopularBooks = (...args) => apiService.getPopularBooks(...args);

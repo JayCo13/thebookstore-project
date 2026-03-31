@@ -195,8 +195,8 @@ export default function StationeryDetailsPage() {
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
           <div className="text-red-600 mb-2">⚠️ Error</div>
           <p className="text-red-700 mb-4">{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
+          <button
+            onClick={() => window.location.reload()}
             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
           >
             Thử Lại
@@ -210,142 +210,147 @@ export default function StationeryDetailsPage() {
 
   return (
     <>
-    <ProductDetailLayout
-      title={item.title}
-      images={images}
-      priceText={priceDisplay}
-      oldPriceText={oldPriceDisplay}
-      discountPriceText={discountPriceDisplay}
-      skuText={item.sku || undefined}
-      stock={item.stock_quantity || 0}
-      categories={(Array.isArray(item.categories) ? item.categories.map(c => c.name) : [])}
-      briefDescription={item.brief_description || item.short_description}
-      fullDescription={item.full_description || item.description}
-      badges={item.is_best_seller ? ['Bestseller'] : item.is_new ? ['New'] : []}
-      backLink={{ href: '/stationery', label: 'Văn Phòng Phẩm' }}
-      onAddToCart={(qty) => {
-        const cartItem = {
-          id: item.stationery_id,
-          title: item.title,
-          cover: images[0] || null,
-          price: priceDisplay,
-          quantity: qty
-        };
-        addToCart(cartItem);
-        showToast({ title: 'Thêm vào giỏ hàng thành công', message: `${qty} x ${item.title}`, type: 'success', actionLabel: 'Xem giỏ hàng', onAction: () => { window.location.href = '/cart'; } });
-      }}
-      extraSections={(
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-8">
-          <div className="p-6 md:p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Đánh Giá</h2>
+      <ProductDetailLayout
+        title={item.title}
+        images={images}
+        priceText={priceDisplay}
+        oldPriceText={oldPriceDisplay}
+        discountPriceText={discountPriceDisplay}
+        skuText={item.sku || undefined}
+        stock={item.stock_quantity || 0}
+        categories={(Array.isArray(item.categories) ? item.categories.map(c => c.name) : [])}
+        briefDescription={item.brief_description || item.short_description}
+        fullDescription={item.full_description || item.description}
+        badges={(() => {
+          const badgeList = [];
+          if (item.is_discount || item.discounted_price != null) badgeList.push('Giảm giá');
+          return badgeList;
+        })()}
+        isFreeShip={item.is_free_ship || item.isFreeShip}
+        backLink={{ href: '/stationery', label: 'Văn Phòng Phẩm' }}
+        onAddToCart={(qty) => {
+          const cartItem = {
+            id: item.stationery_id,
+            title: item.title,
+            cover: images[0] || null,
+            price: priceDisplay,
+            quantity: qty
+          };
+          addToCart(cartItem);
+          showToast({ title: 'Thêm vào giỏ hàng thành công', message: `${qty} x ${item.title}`, type: 'success', actionLabel: 'Xem giỏ hàng', onAction: () => { window.location.href = '/cart'; } });
+        }}
+        extraSections={(
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-8">
+            <div className="p-6 md:p-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Đánh Giá</h2>
 
-            {loadingReviews ? (
-              <p className="text-sm text-gray-500">Đang tải đánh giá...</p>
-            ) : (
-              <div className="space-y-3">
-                {reviews && reviews.length > 0 ? (
-                  reviews.map((rv) => (
-                    <div key={rv.review_id || `${rv.user_id}-${rv.created_at}`} className="border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {[0,1,2,3,4].map((i) => (
-                            <span key={i} className={`${i < Math.round(rv.rating || 0) ? 'text-amber-500' : 'text-gray-300'}`}>★</span>
-                          ))}
-                          <span className="text-sm text-gray-700 font-medium">{rv.user?.full_name || rv.user?.username || 'Người dùng'}</span>
+              {loadingReviews ? (
+                <p className="text-sm text-gray-500">Đang tải đánh giá...</p>
+              ) : (
+                <div className="space-y-3">
+                  {reviews && reviews.length > 0 ? (
+                    reviews.map((rv) => (
+                      <div key={rv.review_id || `${rv.user_id}-${rv.created_at}`} className="border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {[0, 1, 2, 3, 4].map((i) => (
+                              <span key={i} className={`${i < Math.round(rv.rating || 0) ? 'text-amber-500' : 'text-gray-300'}`}>★</span>
+                            ))}
+                            <span className="text-sm text-gray-700 font-medium">{rv.user?.full_name || rv.user?.username || 'Người dùng'}</span>
+                          </div>
+                          <span className="text-xs text-gray-500">{new Date(rv.created_at).toLocaleDateString()}</span>
                         </div>
-                        <span className="text-xs text-gray-500">{new Date(rv.created_at).toLocaleDateString()}</span>
+                        {rv.comment && <p className="mt-2 text-sm text-gray-700">{rv.comment}</p>}
                       </div>
-                      {rv.comment && <p className="mt-2 text-sm text-gray-700">{rv.comment}</p>}
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-500">Chưa có đánh giá nào.</p>
-                )}
-              </div>
-            )}
-
-            {reviewsError && (
-              <p className="text-sm text-red-600 mt-2">{reviewsError}</p>
-            )}
-
-            {/* Review Form */}
-            <form
-              onSubmit={(e) => { e.preventDefault(); handleSubmitReview(); }}
-              className="mt-6 border border-gray-200 rounded-xl p-4 bg-gray-50"
-            >
-              {authRequired && (
-                <p className="mb-2 text-sm text-gray-600">Vui lòng đăng nhập để viết đánh giá.</p>
-              )}
-              <div className="flex items-center gap-3 mb-3">
-                <label className="text-sm font-medium text-gray-700">Đánh giá:</label>
-                <div className="flex items-center gap-1">
-                  {[1,2,3,4,5].map((i) => (
-                    <button
-                      type="button"
-                      key={i}
-                      onMouseEnter={() => setHoverRating(i)}
-                      onMouseLeave={() => setHoverRating(0)}
-                      onClick={() => setReviewRating(i)}
-                      className="px-1"
-                      aria-label={`Chọn ${i} sao`}
-                      disabled={authRequired}
-                    >
-                      <span className={`text-lg ${(hoverRating || reviewRating) >= i ? 'text-amber-500' : 'text-gray-300'}`}>★</span>
-                    </button>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">Chưa có đánh giá nào.</p>
+                  )}
                 </div>
-              </div>
-              <textarea
-                value={reviewComment}
-                onChange={(e) => setReviewComment(e.target.value)}
-                placeholder="Chia sẻ cảm nhận của bạn..."
-                className="w-full rounded-lg border border-gray-300 p-3 text-sm"
-                rows={3}
-                disabled={authRequired}
-              />
-              <div className="mt-3 flex justify-end">
-                <button
-                  type="submit"
-                  disabled={authRequired || submittingReview || (blockedUntil && Date.now() < blockedUntil)}
-                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  {submittingReview ? 'Đang gửi...' : 'Gửi đánh giá'}
-                </button>
-              </div>
-              {blockedUntil && Date.now() < blockedUntil && (
-                <div className="mt-2 text-xs text-gray-500">Tạm khóa gửi trong 1 phút do nhiều lần thử.</div>
               )}
-            </form>
-          </div>
-        </div>
-      )}
-    />
-    {/* Review dialogs */}
-    <ConfirmDialog
-      open={showLoginDialog}
-      title="Yêu cầu đăng nhập"
-      message="Bạn cần đăng nhập để viết đánh giá. Chuyển đến trang đăng nhập?"
-      confirmText="Đăng nhập"
-      cancelText="Để sau"
-      onConfirm={() => {
-        setShowLoginDialog(false);
-        navigate('/login');
-      }}
-      onClose={() => setShowLoginDialog(false)}
-    />
 
-    <ConfirmDialog
-      open={showLowRatingDialog}
-      title="Xác nhận đánh giá thấp"
-      message="Đánh giá dưới 4 sao có thể ảnh hưởng đến thu nhập của sản phẩm. Nếu có bất tiện xin vui lòng liên hệ người bán để họ xử lý. Bạn có chắc muốn gửi đánh giá này?"
-      confirmText="Gửi đánh giá"
-      cancelText="Hủy"
-      onConfirm={() => {
-        setShowLowRatingDialog(false);
-        submitReview();
-      }}
-      onClose={() => setShowLowRatingDialog(false)}
-    />
+              {reviewsError && (
+                <p className="text-sm text-red-600 mt-2">{reviewsError}</p>
+              )}
+
+              {/* Review Form */}
+              <form
+                onSubmit={(e) => { e.preventDefault(); handleSubmitReview(); }}
+                className="mt-6 border border-gray-200 rounded-xl p-4 bg-gray-50"
+              >
+                {authRequired && (
+                  <p className="mb-2 text-sm text-gray-600">Vui lòng đăng nhập để viết đánh giá.</p>
+                )}
+                <div className="flex items-center gap-3 mb-3">
+                  <label className="text-sm font-medium text-gray-700">Đánh giá:</label>
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <button
+                        type="button"
+                        key={i}
+                        onMouseEnter={() => setHoverRating(i)}
+                        onMouseLeave={() => setHoverRating(0)}
+                        onClick={() => setReviewRating(i)}
+                        className="px-1"
+                        aria-label={`Chọn ${i} sao`}
+                        disabled={authRequired}
+                      >
+                        <span className={`text-lg ${(hoverRating || reviewRating) >= i ? 'text-amber-500' : 'text-gray-300'}`}>★</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <textarea
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  placeholder="Chia sẻ cảm nhận của bạn..."
+                  className="w-full rounded-lg border border-gray-300 p-3 text-sm"
+                  rows={3}
+                  disabled={authRequired}
+                />
+                <div className="mt-3 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={authRequired || submittingReview || (blockedUntil && Date.now() < blockedUntil)}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {submittingReview ? 'Đang gửi...' : 'Gửi đánh giá'}
+                  </button>
+                </div>
+                {blockedUntil && Date.now() < blockedUntil && (
+                  <div className="mt-2 text-xs text-gray-500">Tạm khóa gửi trong 1 phút do nhiều lần thử.</div>
+                )}
+              </form>
+            </div>
+          </div>
+        )}
+      />
+      {/* Review dialogs */}
+      <ConfirmDialog
+        open={showLoginDialog}
+        title="Yêu cầu đăng nhập"
+        message="Bạn cần đăng nhập để viết đánh giá. Chuyển đến trang đăng nhập?"
+        confirmText="Đăng nhập"
+        cancelText="Để sau"
+        onConfirm={() => {
+          setShowLoginDialog(false);
+          navigate('/login');
+        }}
+        onClose={() => setShowLoginDialog(false)}
+      />
+
+      <ConfirmDialog
+        open={showLowRatingDialog}
+        title="Xác nhận đánh giá thấp"
+        message="Đánh giá dưới 4 sao có thể ảnh hưởng đến thu nhập của sản phẩm. Nếu có bất tiện xin vui lòng liên hệ người bán để họ xử lý. Bạn có chắc muốn gửi đánh giá này?"
+        confirmText="Gửi đánh giá"
+        cancelText="Hủy"
+        onConfirm={() => {
+          setShowLowRatingDialog(false);
+          submitReview();
+        }}
+        onClose={() => setShowLowRatingDialog(false)}
+      />
     </>
   );
 }

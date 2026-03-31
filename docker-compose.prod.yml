@@ -40,7 +40,9 @@ services:
 
   # FastAPI Backend
   backend:
-    image: jayden1110/bookstore-backend:latest
+    build:
+      context: ./bookstore-backend
+      dockerfile: Dockerfile
     container_name: bookstore-backend
     restart: always
     environment:
@@ -55,7 +57,7 @@ services:
       - ZALO_CALLBACK_URL=${ZALO_CALLBACK_URL}
       - GHN_API_TOKEN=${GHN_API_TOKEN}
       - GHN_SHOP_ID=${GHN_SHOP_ID}
-      - GHN_API_BASE_URL=${GHN_API_BASE_URL:-https://online-gateway.ghn.vn/shiip/public-api}
+      - GHN_BASE_URL=${GHN_BASE_URL:-https://online-gateway.ghn.vn}
       - MAIL_USERNAME=${MAIL_USERNAME}
       - MAIL_PASSWORD=${MAIL_PASSWORD}
       - MAIL_FROM=${MAIL_FROM}
@@ -67,6 +69,10 @@ services:
       - FRONTEND_URL=${FRONTEND_URL}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     volumes:
       - backend_uploads:/app/uploads
       - backend_chroma:/app/chroma_db_store
@@ -79,17 +85,9 @@ services:
     networks:
       - bookstore-network
 
-  # React Frontend (built for production)
-  frontend:
-    image: jayden1110/bookstore-frontend:latest
-    container_name: bookstore-frontend
-    restart: always
-    depends_on:
-      - backend
-    networks:
-      - bookstore-network
+  # Frontend is now on Netlify — removed from Docker to free VPS resources
 
-  # Nginx Reverse Proxy with SSL
+  # Nginx Reverse Proxy with SSL (API Gateway only)
   nginx:
     image: nginx:alpine
     container_name: bookstore-nginx
@@ -103,7 +101,6 @@ services:
       - ./certbot/www:/var/www/certbot:ro
       - ./certbot/conf:/etc/letsencrypt:ro
     depends_on:
-      - frontend
       - backend
     networks:
       - bookstore-network

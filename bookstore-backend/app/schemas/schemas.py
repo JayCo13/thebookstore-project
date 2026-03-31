@@ -264,13 +264,13 @@ class BookBase(BaseModel):
     is_active: bool = True
     
     # Position fields
-    is_best_seller: bool = False
-    is_new: bool = False
     is_discount: bool = False
     is_slide1: bool = False
     is_slide2: bool = False
     is_slide3: bool = False
     is_free_ship: bool = False
+    is_featured: bool = False
+    display_order: int = 0
     
     # Discount fields
     discount_percentage: Optional[Decimal] = None
@@ -309,13 +309,13 @@ class BookUpdate(BaseModel):
     category_ids: Optional[List[int]] = None
     
     # Position fields
-    is_best_seller: Optional[bool] = None
-    is_new: Optional[bool] = None
     is_discount: Optional[bool] = None
     is_slide1: Optional[bool] = None
     is_slide2: Optional[bool] = None
     is_slide3: Optional[bool] = None
     is_free_ship: Optional[bool] = None
+    is_featured: Optional[bool] = None
+    display_order: Optional[int] = None
     
     # Discount fields
     discount_percentage: Optional[Decimal] = None
@@ -377,13 +377,13 @@ class StationeryBase(BaseModel):
     weight_grams: Optional[int] = None
 
     # Position flags
-    is_best_seller: bool = False
-    is_new: bool = False
     is_discount: bool = False
     is_slide1: bool = False
     is_slide2: bool = False
     is_slide3: bool = False
     is_free_ship: bool = False
+    is_featured: bool = False
+    display_order: int = 0
 
     # Discount fields
     discount_percentage: Optional[Decimal] = None
@@ -415,13 +415,13 @@ class StationeryUpdate(BaseModel):
     weight_grams: Optional[int] = None
 
     # Position flags
-    is_best_seller: Optional[bool] = None
-    is_new: Optional[bool] = None
     is_discount: Optional[bool] = None
     is_slide1: Optional[bool] = None
     is_slide2: Optional[bool] = None
     is_slide3: Optional[bool] = None
     is_free_ship: Optional[bool] = None
+    is_featured: Optional[bool] = None
+    display_order: Optional[int] = None
 
     # Discount fields
     discount_percentage: Optional[Decimal] = None

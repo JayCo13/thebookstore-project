@@ -25,8 +25,6 @@ async def get_stationery(
     limit: int = Query(10, ge=1, le=100),
     category_id: Optional[int] = None,
     search: Optional[str] = None,
-    is_best_seller: Optional[bool] = None,
-    is_new: Optional[bool] = None,
     is_discount: Optional[bool] = None,
     slide_number: Optional[int] = Query(None, ge=1, le=3),
     db: Session = Depends(get_db),
@@ -35,7 +33,7 @@ async def get_stationery(
 ):
     """List stationery items with optional filtering and caching."""
     cache = RedisCache(redis)
-    cache_key = f"stationery:list:{skip}:{limit}:{category_id}:{search}:{is_best_seller}:{is_new}:{is_discount}:{slide_number}"
+    cache_key = f"stationery:list:{skip}:{limit}:{category_id}:{search}:{is_discount}:{slide_number}"
     cached = await cache.get(cache_key)
     if cached:
         return cached
@@ -53,17 +51,13 @@ async def get_stationery(
             Stationery.full_description.ilike(term)
         )
 
-    if is_best_seller is not None:
-        query = query.filter(Stationery.is_best_seller == is_best_seller)
-    if is_new is not None:
-        query = query.filter(Stationery.is_new == is_new)
     if is_discount is not None:
         query = query.filter(Stationery.is_discount == is_discount)
     if slide_number is not None:
         slide_field = getattr(Stationery, f"is_slide{slide_number}")
         query = query.filter(slide_field == True)
 
-    items = query.offset(skip).limit(limit).all()
+    items = query.order_by(Stationery.display_order.asc(), Stationery.stationery_id.desc()).offset(skip).limit(limit).all()
     
     # Map model fields to response schema physical fields and add sales data
     resp = []
@@ -81,6 +75,108 @@ async def get_stationery(
         r.total_sold = int(total_sold)
         resp.append(r)
     await cache.set(cache_key, [r.dict() for r in resp], 300)
+    return resp
+
+
+@router.get("/latest", response_model=List[StationeryResponse])
+async def get_latest_stationery(
+    limit: int = Query(9, ge=1, le=50),
+    category_id: Optional[int] = None,
+    exclude_category_ids: Optional[str] = None,
+    db: Session = Depends(get_db),
+    redis: Redis = Depends(get_redis)
+):
+    """Get newest stationery items sorted by creation date (newest first)."""
+    cache = RedisCache(redis)
+    cache_key = f"stationery:latest:{limit}:{category_id}:{exclude_category_ids}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return cached
+
+    query = db.query(Stationery).filter(Stationery.is_active == True)
+
+    if category_id:
+        query = query.join(Stationery.categories).filter(Category.category_id == category_id)
+
+    if exclude_category_ids:
+        try:
+            exclude_ids = [int(x.strip()) for x in exclude_category_ids.split(",") if x.strip()]
+            if exclude_ids:
+                from sqlalchemy import not_
+                query = query.filter(
+                    not_(Stationery.categories.any(Category.category_id.in_(exclude_ids)))
+                )
+        except (ValueError, AttributeError):
+            pass
+
+    items = query.order_by(Stationery.created_at.desc(), Stationery.stationery_id.desc()).limit(limit).all()
+
+    resp = []
+    for i in items:
+        total_sold = db.query(func.sum(OrderItem.quantity))\
+            .filter(OrderItem.stationery_id == i.stationery_id)\
+            .scalar() or 0
+        r = StationeryResponse.from_orm(i)
+        r.height_cm = getattr(i, "height", None)
+        r.width_cm = getattr(i, "width", None)
+        r.length_cm = getattr(i, "length", None)
+        r.weight_grams = getattr(i, "weight", None)
+        r.total_sold = int(total_sold)
+        resp.append(r)
+
+    await cache.set(cache_key, [r.dict() for r in resp], 300)
+    return resp
+
+
+@router.get("/featured", response_model=List[StationeryResponse])
+async def get_featured_stationery(
+    limit: int = Query(20, ge=1, le=50),
+    category_id: Optional[int] = None,
+    exclude_category_ids: Optional[str] = None,
+    db: Session = Depends(get_db),
+    redis: Redis = Depends(get_redis)
+):
+    """Get stationery items marked as featured by admin, with optional category filtering."""
+    cache = RedisCache(redis)
+    cache_key = f"stationery:featured:{limit}:{category_id}:{exclude_category_ids}"
+    cached = await cache.get(cache_key)
+    if cached:
+        return cached
+
+    query = db.query(Stationery).filter(
+        Stationery.is_active == True,
+        Stationery.is_featured == True
+    )
+
+    if category_id:
+        query = query.join(Stationery.categories).filter(Category.category_id == category_id)
+    
+    if exclude_category_ids:
+        # Exclude items that belong to any of the specified category IDs
+        exclude_ids = [int(x) for x in exclude_category_ids.split(',') if x.strip().isdigit()]
+        if exclude_ids:
+            from sqlalchemy import not_, exists
+            from app.models.models import stationery_categories
+            subq = db.query(stationery_categories.c.stationery_id).filter(
+                stationery_categories.c.category_id.in_(exclude_ids)
+            ).subquery()
+            query = query.filter(not_(Stationery.stationery_id.in_(subq)))
+
+    items = query.order_by(Stationery.display_order.asc(), Stationery.stationery_id.desc()).limit(limit).all()
+
+    resp = []
+    for i in items:
+        total_sold = db.query(func.sum(OrderItem.quantity))\
+            .filter(OrderItem.stationery_id == i.stationery_id)\
+            .scalar() or 0
+        r = StationeryResponse.from_orm(i)
+        r.height_cm = getattr(i, "height", None)
+        r.width_cm = getattr(i, "width", None)
+        r.length_cm = getattr(i, "length", None)
+        r.weight_grams = getattr(i, "weight", None)
+        r.total_sold = int(total_sold)
+        resp.append(r)
+    await cache.set(cache_key, [r.dict() for r in resp], 1800)
     return resp
 
 

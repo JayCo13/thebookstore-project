@@ -7,7 +7,7 @@ import BookDetailsModal from '../../../../components/BookDetailsModal';
 import { useCart } from '../../../../hooks/useCart';
 import { useWishlist } from '../../../../hooks/useWishlist';
 import { useToast } from '../../../../contexts/ToastContext.jsx';
-import { getFeaturedBooks, getNewArrivals, getBookCoverUrl, getBookReviews, getStationery } from '../../../../service/api';
+import { getFeaturedBooks, getBookCoverUrl, getBookReviews, getFeaturedStationery } from '../../../../service/api';
 import StationeryCard from './StationeryCard';
 import StationeryDetailsModal from '../../../../components/StationeryDetailsModal.jsx';
 import { formatPrice } from '../../../../utils/currency';
@@ -24,6 +24,8 @@ const formatBookData = (book) => {
       : (amt != null ? Math.max(0, Math.round(basePrice - amt)) : null));
   return {
     id: book.book_id,
+    book_id: book.book_id,
+    slug: book.slug,
     title: book.title,
     author: book.authors && book.authors.length > 0 ? book.authors[0].name : 'Unknown Author',
     stock_quantity: book.stock_quantity,
@@ -36,14 +38,15 @@ const formatBookData = (book) => {
       book.image2_url ? getBookCoverUrl(book.image2_url) : null,
       book.image3_url ? getBookCoverUrl(book.image3_url) : null,
     ].filter(Boolean),
-    tag: book.is_best_seller ? "Bán chạy" : book.is_new ? "Mới ra mắt" : (discountedCalc != null ? "Giảm giá" : undefined),
+    tag: book.is_discount ? "Giảm giá" : (discountedCalc != null ? "Giảm giá" : undefined),
     isFreeShip: !!book.is_free_ship,
     description: book.description,
     pages: book.pages,
     publishDate: book.publication_date,
     isbn: book.isbn,
     genre: book.categories && book.categories.length > 0 ? book.categories[0].name : undefined,
-    category: book.categories && book.categories.length > 0 ? book.categories[0].name : undefined
+    category: book.categories && book.categories.length > 0 ? book.categories[0].name : undefined,
+    display_order: book.display_order ?? 0
   };
 };
 
@@ -70,24 +73,11 @@ export default function FeaturedBooks() {
   const fetchFeaturedBooks = async () => {
     try {
       setLoading(true);
-      // Fetch books: new arrivals + best sellers
-      const [bestBooks, newBooks] = await Promise.all([
-        getFeaturedBooks().catch(() => []),
-        getNewArrivals().catch(() => [])
-      ]);
-      const booksArr = Array.isArray(bestBooks) ? bestBooks : (bestBooks?.data || []);
-      const newArr = Array.isArray(newBooks) ? newBooks : (newBooks?.data || []);
-      const mergedBooksRaw = [...newArr, ...booksArr];
-      const uniqueBooks = [];
-      const seenBookIds = new Set();
-      for (const b of mergedBooksRaw) {
-        const id = b.book_id ?? b.id;
-        if (!seenBookIds.has(id)) {
-          seenBookIds.add(id);
-          uniqueBooks.push(b);
-        }
-      }
-      const formattedBooks = uniqueBooks.map(formatBookData);
+      // Fetch admin-selected featured books (already sorted by display_order from backend)
+      const featuredRes = await getFeaturedBooks().catch(() => []);
+      const booksArr = Array.isArray(featuredRes) ? featuredRes : (featuredRes?.data || []);
+      
+      const formattedBooks = booksArr.map(formatBookData);
       const withRatings = await Promise.all(
         formattedBooks.map(async (b) => {
           try {
@@ -102,20 +92,12 @@ export default function FeaturedBooks() {
         })
       );
 
-      // Fetch stationery: new + best seller
-      const [newStationeryRes, bestStationeryRes] = await Promise.all([
-        getStationery({ is_new: true, limit: 12 }).catch(() => []),
-        getStationery({ is_best_seller: true, limit: 12 }).catch(() => []),
-      ]);
-      const stNew = Array.isArray(newStationeryRes) ? newStationeryRes : (newStationeryRes?.data || []);
-      const stBest = Array.isArray(bestStationeryRes) ? bestStationeryRes : (bestStationeryRes?.data || []);
-      const stMerged = [...stNew, ...stBest];
-      const seenStIds = new Set();
+      // Fetch featured stationery
+      const stationeryRes = await getFeaturedStationery({ limit: 12 }).catch(() => []);
+      const stRaw = Array.isArray(stationeryRes) ? stationeryRes : (stationeryRes?.data || []);
       const normalizedStationery = [];
-      for (const it of stMerged) {
+      for (const it of stRaw) {
         const sid = it.stationery_id ?? it.id;
-        if (seenStIds.has(sid)) continue;
-        seenStIds.add(sid);
         const basePrice = Number(it.price ?? 0);
         const pct = it.discount_percentage != null ? Number(it.discount_percentage) : null;
         const amt = it.discount_amount != null ? Number(it.discount_amount) : null;
@@ -132,42 +114,19 @@ export default function FeaturedBooks() {
           originalPrice: formatPrice(basePrice),
           discountedPrice: discountedCalc != null ? formatPrice(discountedCalc) : null,
           price: discountedCalc != null ? formatPrice(discountedCalc) : formatPrice(basePrice),
-          tag: it.is_best_seller ? 'Bán chạy' : it.is_new ? 'Mới' : (discountedCalc != null ? 'Giảm giá' : undefined),
+          tag: it.is_discount ? 'Giảm giá' : (discountedCalc != null ? 'Giảm giá' : undefined),
           isFreeShip: !!it.is_free_ship,
           category: Array.isArray(it.categories) && it.categories.length > 0 ? it.categories[0].name : undefined,
           avg_rating: it.avg_rating ?? 0,
           review_count: it.review_count ?? 0,
           type: 'stationery',
-          created_at: it.created_at || null
+          created_at: it.created_at || null,
+          display_order: it.display_order ?? 0
         });
       }
 
-      // Determine "New" by created/published date
-      const NEW_WINDOW_DAYS = 45;
-      const now = Date.now();
-      const isWithinWindow = (dateStr) => {
-        if (!dateStr) return false;
-        const ms = new Date(dateStr).getTime();
-        if (Number.isNaN(ms)) return false;
-        const diffDays = (now - ms) / (1000 * 60 * 60 * 24);
-        return diffDays <= NEW_WINDOW_DAYS;
-      };
-
-      const markNew = (item) => {
-        const created = item.created_at || item.publishDate || null;
-        const isNew = isWithinWindow(created);
-        const tag = isNew ? 'New' : item.tag;
-        return { ...item, isNew, tag, created_at: created };
-      };
-
-      const allItems = [...withRatings.map(markNew), ...normalizedStationery.map(markNew)];
-      // Sort: New first, then by created date desc
-      allItems.sort((a, b) => {
-        if (a.isNew !== b.isNew) return b.isNew - a.isNew;
-        const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return tb - ta;
-      });
+      // Featured books come first (already sorted by backend), then stationery
+      const allItems = [...withRatings, ...normalizedStationery];
 
       setItems(allItems.slice(0, 9));
     } catch (err) {

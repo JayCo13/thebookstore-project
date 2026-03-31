@@ -31,10 +31,9 @@ const CreateStationery = () => {
     image3_url: '',
     sku: '',
     // Flags similar to book
-    is_best_seller: false,
-    is_new: false,
     is_discount: false,
     is_free_ship: false,
+    is_featured: false,
     // Shipping dimensions
     height: '',
     width: '',
@@ -170,10 +169,9 @@ const CreateStationery = () => {
         image2_url: form.image2_url || null,
         image3_url: form.image3_url || null,
         sku: form.sku?.trim() ? form.sku.trim() : null,
-        is_best_seller: !!form.is_best_seller,
-        is_new: !!form.is_new,
         is_discount: !!form.is_discount,
         is_free_ship: !!form.is_free_ship,
+        is_featured: !!form.is_featured,
         // Dimensions & weight (backend expects *_cm and weight_grams)
         height_cm: form.height ? parseFloat(form.height) : null,
         width_cm: form.width ? parseFloat(form.width) : null,
@@ -318,20 +316,16 @@ const CreateStationery = () => {
               <h3>Trạng thái</h3>
               <div className="flags">
                 <label className="flag-item">
-                  <input type="checkbox" name="is_best_seller" checked={form.is_best_seller} onChange={handleChange} />
-                  Bán chạy
-                </label>
-                <label className="flag-item">
-                  <input type="checkbox" name="is_new" checked={form.is_new} onChange={handleChange} />
-                  Hàng mới
-                </label>
-                <label className="flag-item">
                   <input type="checkbox" name="is_discount" checked={form.is_discount} onChange={handleChange} />
                   Khuyến mãi
                 </label>
                 <label className="flag-item" style={{ background: '#e6f7e6', padding: '4px 8px', borderRadius: '4px' }}>
                   <input type="checkbox" name="is_free_ship" checked={form.is_free_ship} onChange={handleChange} />
                   🚚 Miễn phí vận chuyển
+                </label>
+                <label className="flag-item" style={{ background: '#e0f7fa', padding: '4px 8px', borderRadius: '4px', border: '1px solid #00838f' }}>
+                  <input type="checkbox" name="is_featured" checked={form.is_featured} onChange={handleChange} />
+                  ⭐ Nổi Bật (Trang Chủ)
                 </label>
               </div>
             </div>

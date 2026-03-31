@@ -51,9 +51,7 @@ const formatItemData = (item) => {
         discountedPrice: discountedCalc != null ? formatPrice(discountedCalc) : null,
         price: discountedCalc != null ? formatPrice(discountedCalc) : formatPrice(basePrice),
         description: item.short_description || item.description || 'No description available',
-        isBestSeller: item.is_best_seller || false,
-        isNewRelease: item.is_new || false,
-        tag: item.is_best_seller ? "Best Seller" : item.is_new ? "New" : (item.is_discount ? "Discount" : null),
+        tag: item.is_discount ? "Giảm giá" : null,
         stock_quantity: item.stock_quantity || 0,
         total_sold: item.total_sold || 0  // Sales data from backend
     };

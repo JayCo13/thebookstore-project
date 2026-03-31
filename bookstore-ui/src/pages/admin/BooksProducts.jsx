@@ -1,7 +1,7 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Button, Input } from '../../components';
 import { useNavigate } from 'react-router-dom';
-import { Squares2X2Icon, ListBulletIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { Squares2X2Icon, ListBulletIcon, PencilSquareIcon, TrashIcon, PlusIcon, DocumentArrowUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { getBooks, getCategories, getAuthors, deleteBook, updateBook } from '../../service';
 import { formatPrice } from '../../utils/currency';
 import './BooksProducts.css';
@@ -16,8 +16,7 @@ const priceRanges = [
 
 const positionOptions = [
   { label: 'None', value: 'none' },
-  { label: 'Best Seller', value: 'is_best_seller' },
-  { label: 'New Release', value: 'is_new' },
+  { label: 'Nổi Bật', value: 'is_featured' },
   { label: 'Slide 1', value: 'is_slide1' },
   { label: 'Slide 2', value: 'is_slide2' },
   { label: 'Slide 3', value: 'is_slide3' },
@@ -32,16 +31,31 @@ const BooksProducts = () => {
   const [store, setStore] = useState('All Collection');
   const [sort, setSort] = useState('Default');
   const [view, setView] = useState('list');
-  
+
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  
+
   // API data states
   const [books, setBooks] = useState([]);
   const [categories, setCategories] = useState([]);
   const [authors, setAuthors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const addMenuRef = useRef(null);
+
+  // Close add menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target)) {
+        setShowAddMenu(false);
+      }
+    };
+    if (showAddMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showAddMenu]);
 
   // Reset filters handler
   const handleResetFilters = () => {
@@ -59,17 +73,17 @@ const BooksProducts = () => {
       try {
         setLoading(true);
         setError(null);
-        
+
         // Fetch books
-      const booksResponse = await getBooks();
-      const categoriesResponse = await getCategories();
-      const authorsResponse = await getAuthors();
-        
+        const booksResponse = await getBooks({ limit: 1000 });
+        const categoriesResponse = await getCategories();
+        const authorsResponse = await getAuthors();
+
         // Handle both direct response and response.data structure
         const booksData = Array.isArray(booksResponse) ? booksResponse : (booksResponse?.data || []);
         const categoriesData = Array.isArray(categoriesResponse) ? categoriesResponse : (categoriesResponse?.data || []);
         const authorsData = Array.isArray(authorsResponse) ? authorsResponse : (authorsResponse?.data || []);
-        
+
         setBooks(booksData);
         setCategories(categoriesData);
         setAuthors(authorsData);
@@ -95,25 +109,25 @@ const BooksProducts = () => {
     const result = books.filter(b => {
       // Extract author names from the authors array
       const authorNames = b.authors?.map(author => author.name).join(', ') || '';
-      
+
       // Extract category names from the categories array
       const categoryNames = b.categories?.map(cat => cat.name) || [];
-      
-      const matchQuery = query.trim() === '' || 
-        b.title.toLowerCase().includes(query.toLowerCase()) || 
+
+      const matchQuery = query.trim() === '' ||
+        b.title.toLowerCase().includes(query.toLowerCase()) ||
         b.isbn?.toLowerCase().includes(query.toLowerCase()) ||
         authorNames.toLowerCase().includes(query.toLowerCase());
-      
-      const matchCategory = category === 'All Collection' || 
+
+      const matchCategory = category === 'All Collection' ||
         categoryNames.some(catName => catName === category);
-      
+
       // Convert price to number for comparison (handle string prices)
       const bookPrice = typeof b.price === 'string' ? parseFloat(b.price) : b.price;
       const matchPrice = bookPrice >= range.min && bookPrice <= range.max;
-      
+
       // For now, we'll consider all books as "Active" since the API doesn't have status field
       const matchStatus = status === 'All Status' || status === 'Active';
-      
+
       return matchQuery && matchCategory && matchPrice && matchStatus;
     }).sort((a, b) => {
       if (sort === 'Mặc Định') return 0;
@@ -163,8 +177,7 @@ const BooksProducts = () => {
     try {
       // Create update object - reset all position fields first (except is_discount which is auto-calculated)
       const updateData = {
-        is_best_seller: false,
-        is_new: false,
+        is_featured: false,
         is_slide1: false,
         is_slide2: false,
         is_slide3: false,
@@ -176,16 +189,16 @@ const BooksProducts = () => {
       }
 
       await updateBook(bookId, updateData);
-      
+
       // Update the local state to reflect the change
-      setBooks(prevBooks => 
-        prevBooks.map(book => 
-          book.book_id === bookId 
+      setBooks(prevBooks =>
+        prevBooks.map(book =>
+          book.book_id === bookId
             ? { ...book, ...updateData }
             : book
         )
       );
-      
+
       // Book position updated successfully
     } catch (error) {
       console.error('Error updating book position:', error);
@@ -194,8 +207,7 @@ const BooksProducts = () => {
   };
 
   const getCurrentPosition = (book) => {
-    if (book.is_best_seller) return 'is_best_seller';
-    if (book.is_new) return 'is_new';
+    if (book.is_featured) return 'is_featured';
     if (book.is_slide1) return 'is_slide1';
     if (book.is_slide2) return 'is_slide2';
     if (book.is_slide3) return 'is_slide3';
@@ -228,22 +240,22 @@ const BooksProducts = () => {
       {/* Top controls */}
       <div className="toolbar">
         <div className="left">
-          <button className={`icon-btn ${view==='grid' ? 'active' : ''} p-1`} aria-label="grid" onClick={()=>setView('grid')}>
-            <Squares2X2Icon className="h-6 w-6"/>
+          <button className={`icon-btn ${view === 'grid' ? 'active' : ''} p-1`} aria-label="grid" onClick={() => setView('grid')}>
+            <Squares2X2Icon className="h-6 w-6" />
           </button>
-          <button className={`icon-btn ${view==='list' ? 'active' : ''} p-1`} aria-label="list" onClick={()=>setView('list')}>
+          <button className={`icon-btn ${view === 'list' ? 'active' : ''} p-1`} aria-label="list" onClick={() => setView('list')}>
             <ListBulletIcon className="h-6 w-6" />
           </button>
-          <Input className="search" placeholder="Tìm kiếm..." value={query} onChange={(e)=>setQuery(e.target.value)} />
+          <Input className="search" placeholder="Tìm kiếm..." value={query} onChange={(e) => setQuery(e.target.value)} />
           <div className="select-row">
             <span>Hiển Thị:</span>
-            <select value={'All Products'} onChange={()=>{}}>
+            <select value={'All Products'} onChange={() => { }}>
               <option>Tất Cả Sản Phẩm</option>
             </select>
           </div>
           <div className="select-row">
             <span>Sắp Xếp Theo:</span>
-            <select value={sort} onChange={(e)=>setSort(e.target.value)}>
+            <select value={sort} onChange={(e) => setSort(e.target.value)}>
               <option>Mặc Định</option>
               <option>Giá: Từ Thấp Đến Cao</option>
               <option>Giá: Từ Cao Đến Thấp</option>
@@ -252,7 +264,51 @@ const BooksProducts = () => {
         </div>
         <div className="right">
           <Button variant="outline" onClick={handleResetFilters}>Reset Bộ Lọc</Button>
-          <Button variant="primary" onClick={()=>navigate('/admin/books/new')}>Thêm Sản Phẩm Mới</Button>
+          <div style={{ position: 'relative' }}>
+            <Button variant="primary" onClick={() => setShowAddMenu(prev => !prev)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <PlusIcon style={{ width: 16, height: 16 }} /> Thêm Sản Phẩm Mới <ChevronDownIcon style={{ width: 14, height: 14 }} />
+            </Button>
+            {showAddMenu && (
+              <div ref={addMenuRef} style={{
+                position: 'absolute', right: 0, top: '110%', background: 'white',
+                border: '1px solid #e2e8f0', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                zIndex: 100, minWidth: 240, overflow: 'hidden'
+              }}>
+                <button
+                  onClick={() => { setShowAddMenu(false); navigate('/admin/books/new'); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '14px 16px',
+                    border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#1e293b',
+                    borderBottom: '1px solid #f1f5f9', textAlign: 'left'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f0fdfa'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >
+                  <PlusIcon style={{ width: 20, height: 20, color: '#008080' }} />
+                  <div>
+                    <div style={{ fontWeight: 600 }}>Thêm 1 sách</div>
+                    <div style={{ fontSize: 12, color: '#94a3b8' }}>Tạo sách thủ công</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => { setShowAddMenu(false); navigate('/admin/import-books'); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '14px 16px',
+                    border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#1e293b',
+                    textAlign: 'left'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f0fdfa'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >
+                  <DocumentArrowUpIcon style={{ width: 20, height: 20, color: '#008080' }} />
+                  <div>
+                    <div style={{ fontWeight: 600 }}>Import nhiều sách</div>
+                    <div style={{ fontSize: 12, color: '#94a3b8' }}>Upload file Excel (.xlsx)</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -260,7 +316,7 @@ const BooksProducts = () => {
       <div className="filters">
         <div className="filter">
           <label>Danh Mục</label>
-          <select value={category} onChange={(e)=>setCategory(e.target.value)}>
+          <select value={category} onChange={(e) => setCategory(e.target.value)}>
             <option>Tất Cả Danh Mục</option>
             {categories.map(cat => (
               <option key={cat.category_id} value={cat.name}>{cat.name}</option>
@@ -269,16 +325,16 @@ const BooksProducts = () => {
         </div>
         <div className="filter">
           <label>Giá</label>
-          <select value={range.label} onChange={(e)=>{
-            const next = priceRanges.find(r=>r.label===e.target.value) || priceRanges[0];
+          <select value={range.label} onChange={(e) => {
+            const next = priceRanges.find(r => r.label === e.target.value) || priceRanges[0];
             setRange(next);
           }}>
-            {priceRanges.map(r=> <option key={r.label}>{r.label}</option>)}
+            {priceRanges.map(r => <option key={r.label}>{r.label}</option>)}
           </select>
         </div>
         <div className="filter">
           <label>Trạng Thái</label>
-          <select value={status} onChange={(e)=>setStatus(e.target.value)}>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
             <option>Tất Cả Trạng Thái</option>
             <option>Hoạt động</option>
             <option>Không Hoạt Động</option>
@@ -288,9 +344,9 @@ const BooksProducts = () => {
 
       {/* No books found message */}
       {filtered.length === 0 && !loading && (
-        <div className="no-books-message" style={{ 
-          textAlign: 'center', 
-          padding: '3rem', 
+        <div className="no-books-message" style={{
+          textAlign: 'center',
+          padding: '3rem',
           color: '#666',
           fontSize: '1.1rem'
         }}>
@@ -316,13 +372,13 @@ const BooksProducts = () => {
             const currentStock = b.stock_quantity || 0;
             const maxStock = 100; // Assume max stock for progress calculation
             const ratio = Math.min(currentStock / maxStock, 1);
-            const imageUrl = b.image_url ? `http://localhost:8000${b.image_url}` : '/assets/placeholder-book.jpg';
-            
+            const imageUrl = b.image_url ? `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}${b.image_url}` : '/assets/placeholder-book.jpg';
+
             return (
               <div key={b.book_id} className="list-row">
                 <div className="col col-checkbox"><input type="checkbox" /></div>
                 <div className="col col-product">
-                  <img src={imageUrl} alt={b.title} className="thumb" width={500}/>
+                  <img src={imageUrl} alt={b.title} className="thumb" width={500} />
                   <div className="info">
                     <div className="title" title={b.title} style={{ fontSize: '16px' }}>{b.title}</div>
                     <div className="sub" style={{ fontSize: '14px' }}>ISBN: {b.isbn}</div>
@@ -341,8 +397,8 @@ const BooksProducts = () => {
                 </div>
                 <div className="col col-metric">
                   <div className={`progress ${progressColor(ratio)}`}
-                       aria-label={`Stock: ${currentStock}`}>
-                    <div className="bar" style={{width: `${Math.min(100, Math.round(ratio*100))}%`}}></div>
+                    aria-label={`Stock: ${currentStock}`}>
+                    <div className="bar" style={{ width: `${Math.min(100, Math.round(ratio * 100))}%` }}></div>
                   </div>
                   <div className="metric-text">Số Lượng Hiện Tại: {currentStock}</div>
                 </div>
@@ -354,10 +410,10 @@ const BooksProducts = () => {
                 </div>
                 <div className="col col-actions">
                   <button className="edit-btn" onClick={() => navigate(`/admin/products/${b.book_id}/edit`)}>
-                    <PencilSquareIcon className="h-4 w-4"/> Edit
+                    <PencilSquareIcon className="h-4 w-4" /> Edit
                   </button>
                   <button className="delete-btn" onClick={() => handleDeleteBook(b.book_id, b.title)}>
-                    <TrashIcon className="h-4 w-4"/> Delete
+                    <TrashIcon className="h-4 w-4" /> Delete
                   </button>
                 </div>
               </div>
@@ -370,8 +426,8 @@ const BooksProducts = () => {
             const currentStock = b.stock_quantity || 0;
             const maxStock = 100;
             const ratio = Math.min(currentStock / maxStock, 1);
-            const imageUrl = b.image_url ? `http://localhost:8000${b.image_url}` : '/assets/placeholder-book.jpg';
-            
+            const imageUrl = b.image_url ? `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}${b.image_url}` : '/assets/placeholder-book.jpg';
+
             return (
               <div key={b.book_id} className="card">
                 <div className="card-head">
@@ -402,15 +458,15 @@ const BooksProducts = () => {
                 <div className="card-row">
                   <span className="label">Stock:</span>
                   <div className={`progress ${progressColor(ratio)}`}>
-                    <div className="bar" style={{width: `${Math.min(100, Math.round(ratio*100))}%`}}></div>
+                    <div className="bar" style={{ width: `${Math.min(100, Math.round(ratio * 100))}%` }}></div>
                   </div>
                   <span className="metric-text">{currentStock}</span>
                 </div>
                 <div className="card-row">
                   <div className="position-dropdown">
                     <label className="text-sm font-medium text-gray-500">Vị Trí:</label>
-                    <select 
-                      value={getCurrentPosition(b)} 
+                    <select
+                      value={getCurrentPosition(b)}
                       onChange={(e) => handlePositionChange(b.book_id, e.target.value)}
                       className="position-select"
                     >
@@ -422,12 +478,33 @@ const BooksProducts = () => {
                     </select>
                   </div>
                 </div>
+                <div className="card-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <label className="text-sm font-medium text-gray-500">Thứ tự:</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={b.display_order || 0}
+                    onChange={async (e) => {
+                      const newOrder = parseInt(e.target.value) || 0;
+                      try {
+                        await updateBook(b.book_id, { display_order: newOrder });
+                        setBooks(prev => prev.map(book => 
+                          book.book_id === b.book_id ? { ...book, display_order: newOrder } : book
+                        ));
+                      } catch (err) {
+                        console.error('Failed to update display order:', err);
+                      }
+                    }}
+                    style={{ width: '60px', padding: '2px 6px', fontSize: '13px', border: '1px solid #ddd', borderRadius: '4px' }}
+                  />
+                  <span style={{ fontSize: '11px', color: '#999' }}>nhỏ = trước</span>
+                </div>
                 <div className="card-row">
                   <button className="edit-btn" onClick={() => navigate(`/admin/products/${b.book_id}/edit`)}>
-                    <PencilSquareIcon className="h-4 w-4"/> Edit
+                    <PencilSquareIcon className="h-4 w-4" /> Edit
                   </button>
                   <button className="delete-btn" onClick={() => handleDeleteBook(b.book_id, b.title)}>
-                    <TrashIcon className="h-4 w-4"/> Delete
+                    <TrashIcon className="h-4 w-4" /> Delete
                   </button>
                 </div>
               </div>
@@ -481,10 +558,10 @@ const BooksProducts = () => {
             <div style={{ display: 'flex', gap: '0.25rem' }}>
               {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => {
                 // Show first page, last page, current page, and pages around current
-                const showPage = pageNum === 1 || 
-                                pageNum === totalPages || 
-                                Math.abs(pageNum - currentPage) <= 1;
-                
+                const showPage = pageNum === 1 ||
+                  pageNum === totalPages ||
+                  Math.abs(pageNum - currentPage) <= 1;
+
                 if (!showPage && pageNum === 2 && currentPage > 4) {
                   return <span key="ellipsis1" style={{ padding: '0.5rem', color: '#9ca3af' }}>...</span>;
                 }

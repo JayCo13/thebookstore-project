@@ -9,12 +9,19 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+
+# Python virtual environment
+venv/
+.venv/
+env/
 
 # Node modules
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
 
 # Build directories
 build/
@@ -32,10 +39,6 @@ dist/
 ._*
 Thumbs.db
 
-# Logs
-*.log
-logs/
-
 # Database files
 *.db
 *.sqlite
@@ -44,3 +47,26 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+*.bak
+
+# Uploaded images (managed by Docker volumes on VPS, not source code)
+bookstore-backend/static/images/
+!bookstore-backend/static/images/.gitkeep
+
+# ChromaDB vector store
+bookstore-backend/chroma_db_store/
+
+# Test scripts (not production code)
+bookstore-backend/test_*.py
+
+# Excel / data files
+*.xlsx
+*.xls
+*.csv
+
+# Pytest cache
+.pytest_cache/
+
+# Frontend build artifacts
+bookstore-ui/build/
+bookstore-ui/npm_start.log

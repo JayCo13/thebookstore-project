@@ -59,9 +59,9 @@ export default function StationeryCard({ item, onViewDetails, addToCart, addToWi
         {/* Tag badge - impressive ribbon style */}
         {item.tag && (
           <span className={`absolute top-3 left-3 text-white text-sm font-bold px-3 py-1.5 rounded-lg shadow-lg ${item.tag === 'Bán chạy' ? 'bg-gradient-to-r from-rose-500 to-pink-500' :
-              item.tag === 'Mới ra mắt' || item.tag === 'Mới' ? 'bg-gradient-to-r from-blue-500 to-cyan-500' :
-                item.tag === 'Giảm giá' ? 'bg-gradient-to-r from-purple-500 to-indigo-500' :
-                  'bg-gradient-to-r from-teal-500 to-emerald-500'
+            item.tag === 'Mới ra mắt' || item.tag === 'Mới' ? 'bg-gradient-to-r from-blue-500 to-cyan-500' :
+              item.tag === 'Giảm giá' ? 'bg-gradient-to-r from-purple-500 to-indigo-500' :
+                'bg-gradient-to-r from-teal-500 to-emerald-500'
             }`}>
             {item.tag}
           </span>
@@ -150,7 +150,7 @@ export default function StationeryCard({ item, onViewDetails, addToCart, addToWi
             <span className="text-[#008080] font-semibold">{item.price}</span>
           )}
           <Link
-            to={`/stationery/${slugify(item.title)}`}
+            to={`/stationery/${item.slug}`}
             className="text-sm text-[#008080] hover:text-[#006666] font-medium transition-colors"
           >
             Xem chi tiết →

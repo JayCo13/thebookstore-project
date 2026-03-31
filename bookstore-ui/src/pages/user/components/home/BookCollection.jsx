@@ -5,7 +5,7 @@ import BookDetailsModal from '../../../../components/BookDetailsModal';
 import { useCart } from '../../../../hooks/useCart';
 import { useWishlist } from '../../../../hooks/useWishlist';
 import { useToast } from '../../../../contexts/ToastContext.jsx';
-import { getPopularBooks, getBookCoverUrl, getBookReviews } from '../../../../service/api';
+import { getBestSellerBooks, getBookCoverUrl, getBookReviews } from '../../../../service/api';
 import { formatPrice } from '../../../../utils/currency';
 
 // Helper function to format book data from API
@@ -20,6 +20,8 @@ const formatBookData = (book) => {
       : (amt != null ? Math.max(0, Math.round(basePrice - amt)) : null));
   return {
     id: book.book_id,
+    book_id: book.book_id,
+    slug: book.slug,
     title: book.title,
     author: book.authors && book.authors.length > 0 ? book.authors[0].name : 'Unknown Author',
     stock_quantity: book.stock_quantity,
@@ -32,7 +34,7 @@ const formatBookData = (book) => {
       book.image2_url ? getBookCoverUrl(book.image2_url) : null,
       book.image3_url ? getBookCoverUrl(book.image3_url) : null,
     ].filter(Boolean),
-    tag: book.is_best_seller ? "Bán chạy" : book.is_new ? "Mới ra mắt" : (discountedCalc != null ? "Giảm giá" : undefined),
+    tag: book.is_discount ? "Giảm giá" : (discountedCalc != null ? "Giảm giá" : undefined),
     isFreeShip: !!book.is_free_ship,
     description: book.description,
     pages: book.pages,
@@ -64,12 +66,14 @@ export default function BookCollection() {
   const fetchPopularBooks = async () => {
     try {
       setLoading(true);
-      // Get actual best seller books based on order count from backend
-      const popularBooksResponse = await getPopularBooks(4); // Get top 4 best sellers
+      // Get top best-selling books sorted by total_sold
+      const res = await getBestSellerBooks(9);
+      const booksData = Array.isArray(res) ? res : (res?.data || []);
 
       // Format the books data for display
-      const formattedBooks = popularBooksResponse.map(book => ({
+      const formattedBooks = booksData.map(book => ({
         id: book.book_id,
+        slug: book.slug,
         title: book.title,
         author: book.authors && book.authors.length > 0 ? book.authors[0].name : 'Unknown Author',
         stock_quantity: book.stock_quantity,
@@ -82,7 +86,7 @@ export default function BookCollection() {
           book.image2_url ? getBookCoverUrl(book.image2_url) : null,
           book.image3_url ? getBookCoverUrl(book.image3_url) : null,
         ].filter(Boolean),
-        tag: book.is_best_seller ? "Bán chạy" : book.is_new ? "Mới ra mắt" : (book.discounted_price ? "Giảm giá" : undefined),
+        tag: book.is_discount ? "Giảm giá" : (book.discounted_price ? "Giảm giá" : undefined),
         isFreeShip: !!book.is_free_ship,
         description: book.description,
         pages: book.pages,
@@ -90,7 +94,6 @@ export default function BookCollection() {
         isbn: book.isbn,
         genre: book.categories && book.categories.length > 0 ? book.categories[0].name : undefined,
         category: book.categories && book.categories.length > 0 ? book.categories[0].name : undefined,
-        orderCount: book.order_count || 0 // Include order count for display
       }));
 
       // Attach average rating per book (for display)

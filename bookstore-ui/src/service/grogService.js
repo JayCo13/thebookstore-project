@@ -1,6 +1,6 @@
 // Chat service calling backend vector DB chatbot (FastAPI)
 
-const BACKEND_BASE_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
+const BACKEND_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 const API_VERSION = "/api/v1";
 const FULL_BASE_URL = `${BACKEND_BASE_URL}${API_VERSION}`;
 
@@ -56,7 +56,7 @@ export async function sendChatMessage({ message }) {
 export function persistConversation(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
-  } catch {}
+  } catch { }
 }
 
 export function loadConversation(key) {

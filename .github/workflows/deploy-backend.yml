@@ -1,0 +1,69 @@
+# ============================================================
+# Auto Deploy Backend to VPS Vietnix
+# ============================================================
+# Trigger: Push to 'main' branch with changes in bookstore-backend/
+#
+# What this does:
+#   1. SSH into your VPS
+#   2. rsync ONLY the backend code (not .env, not nginx, not docker-compose)
+#   3. Rebuild and restart the backend Docker container
+#
+# SETUP REQUIRED (one-time):
+#   Go to your GitHub repo → Settings → Secrets and variables → Actions
+#   Add these secrets:
+#     VPS_HOST        → Your VPS IP address (e.g., 103.xxx.xxx.xxx)
+#     VPS_USER        → SSH username (e.g., root)
+#     VPS_SSH_KEY     → Your private SSH key (the content of ~/.ssh/id_rsa)
+#     VPS_PROJECT_DIR → Full path to project on VPS (e.g., /root/bookstore-main)
+# ============================================================
+
+name: Deploy Backend to VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Only trigger when backend code changes
+      - 'bookstore-backend/app/**'
+      - 'bookstore-backend/requirements.txt'
+      - 'bookstore-backend/Dockerfile'
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script_stop: true
+          script: |
+            echo "=== Starting Backend Deployment ==="
+            
+            # Navigate to project directory
+            cd ${{ secrets.VPS_PROJECT_DIR }}
+            
+            # Pull latest code from GitHub (only backend files change, .env is in .gitignore)
+            git fetch origin main
+            git checkout main
+            git pull origin main
+            
+            echo "=== Rebuilding Backend Container ==="
+            # Rebuild only the backend container (does NOT touch mysql, redis, nginx)
+            docker-compose -f docker-compose.prod.yml build backend
+            
+            echo "=== Restarting Backend Container ==="
+            # Restart only the backend container (zero downtime for other services)
+            docker-compose -f docker-compose.prod.yml up -d backend
+            
+            echo "=== Cleaning up old Docker images ==="
+            docker image prune -f
+            
+            echo "=== Deployment Complete ==="
+            docker-compose -f docker-compose.prod.yml ps

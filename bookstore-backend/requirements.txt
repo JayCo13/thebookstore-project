@@ -21,7 +21,15 @@ pytest-asyncio==0.21.1
 google-auth==2.23.4
 google-auth-oauthlib==1.1.0
 google-auth-httplib2==0.1.1
+groq==0.12.0
+openpyxl==3.1.2
+bcrypt==4.0.1
+
+# AI/ML packages - CPU only to save disk space
+# Install PyTorch CPU-only version first (much smaller than CUDA version)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.0+cpu
+
+# Then install the rest
 chromadb==0.5.10
 sentence-transformers==2.7.0
-groq==0.12.0
-bcrypt==4.0.1

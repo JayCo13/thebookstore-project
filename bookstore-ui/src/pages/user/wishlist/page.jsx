@@ -84,8 +84,8 @@ export default function WishlistPage() {
                           <td className="px-6 py-4">
                             <div className="flex items-center">
                               <div className="h-24 w-16 relative flex-shrink-0">
-                                <Image 
-                                  src={item.cover} 
+                                <Image
+                                  src={item.cover}
                                   alt={item.title}
                                   fill
                                   className="object-cover rounded"
@@ -132,14 +132,14 @@ export default function WishlistPage() {
                           <td className="px-6 py-4 text-right">
                             <div className="flex justify-end space-x-2">
                               <Link
-                                href={`/book/${slugify(item.title)}`}
+                                href={`/book/${item.slug}`}
                                 className="inline-flex items-center px-3 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors text-sm"
                               >
                                 <EyeIcon className="h-4 w-4 mr-1" />
                               </Link>
-                              <button 
+                              <button
                                 className="inline-flex items-center px-3 py-2 bg-[#008080] text-white rounded-md hover:bg-[#006666] transition-colors text-sm"
-                                onClick={() => { 
+                                onClick={() => {
                                   const cartItem = {
                                     id: item.id,
                                     title: item.title,
@@ -149,24 +149,24 @@ export default function WishlistPage() {
                                     quantity: currentQuantity
                                   };
                                   addToCart(cartItem);
-                                  showToast({ 
-                                    title: 'Added to cart', 
-                                    message: `${currentQuantity} x ${item.title}`, 
-                                    type: 'success', 
-                                    actionLabel: 'View Cart', 
-                                    onAction: () => { window.location.href = '/cart'; } 
+                                  showToast({
+                                    title: 'Added to cart',
+                                    message: `${currentQuantity} x ${item.title}`,
+                                    type: 'success',
+                                    actionLabel: 'View Cart',
+                                    onAction: () => { window.location.href = '/cart'; }
                                   });
                                 }}
                               >
                                 <ShoppingCartIcon className="h-4 w-4 mr-1" />
-                                 
+
                               </button>
-                              <button 
+                              <button
                                 className="inline-flex items-center px-3 py-2 border border-red-600 text-red-600 rounded-md hover:bg-red-50 transition-colors text-sm"
                                 onClick={() => removeFromWishlist(item.id)}
                               >
                                 <TrashIcon className="h-4 w-4 mr-1" />
-                                
+
                               </button>
                             </div>
                           </td>
@@ -185,8 +185,8 @@ export default function WishlistPage() {
                     <div key={item.id} className="rounded-lg border border-gray-200 bg-white shadow-sm">
                       <div className="p-4 flex">
                         <div className="h-24 w-16 relative flex-shrink-0">
-                          <Image 
-                            src={item.cover} 
+                          <Image
+                            src={item.cover}
                             alt={item.title}
                             fill
                             className="object-cover rounded"
@@ -230,15 +230,15 @@ export default function WishlistPage() {
 
                           <div className="mt-3 flex flex-wrap gap-2">
                             <Link
-                              href={`/book/${slugify(item.title)}`}
+                              href={`/book/${item.slug}`}
                               className="inline-flex items-center px-3 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors text-sm"
                             >
                               <EyeIcon className="h-4 w-4 mr-1" />
                               Xem chi tiết
                             </Link>
-                            <button 
+                            <button
                               className="inline-flex items-center px-3 py-2 bg-[#008080] text-white rounded-md hover:bg-[#006666] transition-colors text-sm"
-                              onClick={() => { 
+                              onClick={() => {
                                 const cartItem = {
                                   id: item.id,
                                   title: item.title,
@@ -248,19 +248,19 @@ export default function WishlistPage() {
                                   quantity: currentQuantity
                                 };
                                 addToCart(cartItem);
-                                showToast({ 
-                                  title: 'Added to cart', 
-                                  message: `${currentQuantity} x ${item.title}`, 
-                                  type: 'success', 
-                                  actionLabel: 'View Cart', 
-                                  onAction: () => { window.location.href = '/cart'; } 
+                                showToast({
+                                  title: 'Added to cart',
+                                  message: `${currentQuantity} x ${item.title}`,
+                                  type: 'success',
+                                  actionLabel: 'View Cart',
+                                  onAction: () => { window.location.href = '/cart'; }
                                 });
                               }}
                             >
                               <ShoppingCartIcon className="h-4 w-4 mr-1" />
                               Thêm vào giỏ hàng
                             </button>
-                            <button 
+                            <button
                               className="inline-flex items-center px-3 py-2 border border-red-600 text-red-600 rounded-md hover:bg-red-50 transition-colors text-sm"
                               onClick={() => removeFromWishlist(item.id)}
                             >
@@ -282,8 +282,8 @@ export default function WishlistPage() {
               <h2 className="text-xl text-[#008080] text-center font-bold mb-6">Tóm tắt danh sách yêu thích</h2>
               <p className="text-gray-700">Số lượng sách: <span className="font-medium font-bold">{getWishlistCount()}</span></p>
               <p className="mt-2 text-gray-500">Thêm sách vào giỏ hàng để mua.</p>
-              <Link 
-                href="/cart" 
+              <Link
+                href="/cart"
                 className="mt-6 block text-center border border-[#008080] text-gray-700 py-3 rounded-md hover:bg-[#008080] hover:text-white transition-colors font-medium"
               >
                 Xem giỏ hàng

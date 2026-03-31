@@ -138,13 +138,15 @@ class Book(Base):
     weight = Column(Integer, nullable=True)        # Weight in grams
     
     # Position fields for display features
-    is_best_seller = Column(Boolean, nullable=False, default=False)
-    is_new = Column(Boolean, nullable=False, default=False)
     is_discount = Column(Boolean, nullable=False, default=False)
     is_slide1 = Column(Boolean, nullable=False, default=False)
     is_slide2 = Column(Boolean, nullable=False, default=False)
     is_slide3 = Column(Boolean, nullable=False, default=False)
     is_free_ship = Column(Boolean, nullable=False, default=False)
+    is_featured = Column(Boolean, nullable=False, default=False)
+    
+    # Display order for admin-controlled sorting (lower = shown first)
+    display_order = Column(Integer, nullable=False, default=0)
     
     # Discount pricing fields
     discount_percentage = Column(DECIMAL(5, 2), nullable=True)  # e.g., 15.50 for 15.5%
@@ -198,13 +200,15 @@ class Stationery(Base):
     weight = Column(Integer, nullable=True)
 
     # Position flags similar to books
-    is_best_seller = Column(Boolean, nullable=False, default=False)
-    is_new = Column(Boolean, nullable=False, default=False)
     is_discount = Column(Boolean, nullable=False, default=False)
     is_slide1 = Column(Boolean, nullable=False, default=False)
     is_slide2 = Column(Boolean, nullable=False, default=False)
     is_slide3 = Column(Boolean, nullable=False, default=False)
     is_free_ship = Column(Boolean, nullable=False, default=False)
+    is_featured = Column(Boolean, nullable=False, default=False)
+
+    # Display order for admin-controlled sorting (lower = shown first)
+    display_order = Column(Integer, nullable=False, default=0)
 
     # Discount fields
     discount_percentage = Column(DECIMAL(5, 2), nullable=True)

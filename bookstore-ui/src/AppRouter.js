@@ -55,6 +55,7 @@ import CreateStationery from './pages/admin/CreateStationery.jsx';
 import EditStationery from './pages/admin/EditStationery.jsx';
 import AdminHeroSlides from './pages/admin/AdminHeroSlides.jsx';
 import NotificationManagement from './pages/admin/NotificationManagement.jsx';
+import ImportBooks from './pages/admin/ImportBooks.jsx';
 
 
 // Conditional Widgets - Only show on certain pages
@@ -169,6 +170,7 @@ const AppRouter = () => {
           <Route path="products/:id/edit" element={<EditBook />} />
           <Route path="hero-slides" element={<AdminHeroSlides />} />
           <Route path="notifications" element={<NotificationManagement />} />
+          <Route path="import-books" element={<ImportBooks />} />
           <Route path="analytics" element={<div style={{ padding: 20 }}>Analytics coming soon.</div>} />
           <Route path="history" element={<div style={{ padding: 20 }}>History coming soon.</div>} />
         </Route>

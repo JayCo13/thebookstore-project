@@ -49,11 +49,13 @@ const ManageCustomers = () => {
           }
         });
 
-        // Enhance users with order count
-        const enhancedUsers = usersList.map(u => ({
-          ...u,
-          orders_count: orderCountByUser[u.user_id] || 0
-        }));
+        // Enhance users with order count and filter out admins
+        const enhancedUsers = usersList
+          .filter(u => !u.is_admin && u.role !== 'admin') // Exclude admin accounts
+          .map(u => ({
+            ...u,
+            orders_count: orderCountByUser[u.user_id] || 0
+          }));
 
         if (mounted) {
           setUsers(enhancedUsers);

@@ -348,7 +348,26 @@ async def create_order(
                 logger.info("Attempt Zalo ZNS for order_id=%s ghn_order_code=%s", db_order.order_id, db_order.ghn_order_code)
                 zalo = ZaloService()
                 if zalo.is_configured():
-                    total_vnd = int(db_order.total_amount or 0) + int(db_order.shipping_fee or 0)
+                    # Check if ANY item in the order has free-ship → entire order is free-ship
+                    has_free_ship = False
+                    try:
+                        for it in db_order.order_items:
+                            if it.book_id and it.book and getattr(it.book, 'is_free_ship', False):
+                                has_free_ship = True
+                                break
+                            elif it.stationery_id and it.stationery and getattr(it.stationery, 'is_free_ship', False):
+                                has_free_ship = True
+                                break
+                    except Exception:
+                        has_free_ship = False
+                    
+                    # If any item is free-ship, exclude shipping fee from total
+                    if has_free_ship:
+                        total_vnd = int(db_order.total_amount or 0)
+                        logger.info("Order %s: has free-ship item, excluding shipping fee from Zalo total", db_order.order_id)
+                    else:
+                        total_vnd = int(db_order.total_amount or 0) + int(db_order.shipping_fee or 0)
+                    
                     address_parts = [
                         db_order.shipping_address_line1,
                         db_order.ghn_ward_name,
@@ -386,7 +405,7 @@ async def create_order(
                         "total": total_vnd,
                         "address": address or "",
                         "deli_code": db_order.ghn_order_code,
-                        "customer_name": db_order.shipping_full_name or db_order.customer_name or "",
+                        "customer_name": db_order.shipping_full_name or "",
                         "payment_method": (db_order.payment_method or "").upper(),
                         "tracking_id": ZaloService.safe_tracking_id(),
                         "items": items_str,

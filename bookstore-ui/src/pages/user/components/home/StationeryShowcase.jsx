@@ -5,7 +5,7 @@ import StationeryDetailsModal from '../../../../components/StationeryDetailsModa
 import { useCart } from '../../../../hooks/useCart.js';
 import { useWishlist } from '../../../../hooks/useWishlist.js';
 import { useToast } from '../../../../contexts/ToastContext.jsx';
-import { getStationery, getBookCoverUrl, getStationeryReviews, getStationeryCategories } from '../../../../service/api.js';
+import { getLatestStationery, getBookCoverUrl, getStationeryReviews, getStationeryCategories } from '../../../../service/api.js';
 import { formatPrice } from '../../../../utils/currency.js';
 
 const formatItem = (item) => {
@@ -32,9 +32,10 @@ const formatItem = (item) => {
         originalPrice: formatPrice(basePrice),
         discountedPrice: discountedCalc != null ? formatPrice(discountedCalc) : null,
         price: discountedCalc != null ? formatPrice(discountedCalc) : formatPrice(basePrice),
-        tag: item.is_best_seller ? 'Bán chạy' : item.is_new ? 'Mới' : (item.is_discount ? 'Giảm giá' : null),
+        tag: item.is_discount ? 'Giảm giá' : (discountedCalc != null ? 'Giảm giá' : null),
         isFreeShip: !!item.is_free_ship,
         stock_quantity: item.stock_quantity || 0,
+        display_order: item.display_order ?? 0,
     };
 };
 
@@ -61,19 +62,12 @@ export default function StationeryShowcase() {
                 const yogaCats = allCategories.filter(cat => cat.name.toLowerCase().includes('yoga'));
                 const yogaIds = yogaCats.map(cat => cat.category_id);
 
-                // Fetch all stationery items
-                const res = await getStationery({ skip: 0, limit: 100 });
+                // Fetch newest stationery items, excluding yoga items
+                const excludeParam = yogaIds.length > 0 ? yogaIds.join(',') : undefined;
+                const res = await getLatestStationery({ limit: 9, exclude_category_ids: excludeParam });
                 const raw = Array.isArray(res) ? res : (res?.data || []);
 
-                // Filter out items with Yoga categories
-                const nonYogaItems = raw.filter(item => {
-                    if (!item.categories || item.categories.length === 0) return true;
-                    const hasYogaCategory = item.categories.some(cat => yogaIds.includes(cat.category_id));
-                    return !hasYogaCategory;
-                });
-
-                // Pick newest 4 non-Yoga items
-                const formatted = nonYogaItems.map(formatItem).sort((a, b) => b.id - a.id).slice(0, 4);
+                const formatted = raw.map(formatItem);
 
                 // Compute rating & count for display
                 const withRatings = await Promise.all(

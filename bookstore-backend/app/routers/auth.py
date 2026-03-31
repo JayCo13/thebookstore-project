@@ -608,6 +608,11 @@ async def zalo_set_tokens(
     
     Use this to input the access_token and refresh_token obtained from Zalo.
     The system will automatically refresh the access_token when it expires.
+    
+    IMPORTANT: Per Zalo v4 docs:
+    - Access tokens are valid for ~1 hour
+    - Refresh tokens are valid for up to 30 days
+    - Refresh tokens are SINGLE-USE (must be fresh, never used before)
     """
     from app.models.zalo_tokens import ZaloToken
     from datetime import datetime, timedelta
@@ -619,24 +624,24 @@ async def zalo_set_tokens(
         # Update existing tokens
         existing.access_token = token_data.access_token
         existing.refresh_token = token_data.refresh_token
-        existing.expires_at = datetime.utcnow() + timedelta(hours=25)  # 25 hours
-        existing.refresh_expires_at = datetime.utcnow() + timedelta(days=90)  # 3 months
+        existing.expires_at = datetime.utcnow() + timedelta(hours=1)  # Per Zalo v4: 1 hour
+        existing.refresh_expires_at = datetime.utcnow() + timedelta(days=30)  # Per Zalo v4: 30 days max
         existing.code_verifier = None
         existing.state = None
         db.commit()
-        return MessageResponse(message=f"Zalo tokens đã được cập nhật cho OA: {token_data.oa_id}")
+        return MessageResponse(message=f"Zalo tokens đã được cập nhật cho OA: {token_data.oa_id}. Token có hiệu lực 1 giờ, sẽ tự động refresh.")
     
     # Create new token record
     new_token = ZaloToken(
         oa_id=token_data.oa_id,
         access_token=token_data.access_token,
         refresh_token=token_data.refresh_token,
-        expires_at=datetime.utcnow() + timedelta(hours=25),
-        refresh_expires_at=datetime.utcnow() + timedelta(days=90),
+        expires_at=datetime.utcnow() + timedelta(hours=1),  # Per Zalo v4: 1 hour
+        refresh_expires_at=datetime.utcnow() + timedelta(days=30),  # Per Zalo v4: 30 days max
         code_verifier=None,
         state=None
     )
     db.add(new_token)
     db.commit()
     
-    return MessageResponse(message=f"Zalo tokens đã được lưu cho OA: {token_data.oa_id}")
+    return MessageResponse(message=f"Zalo tokens đã được lưu cho OA: {token_data.oa_id}. Token có hiệu lực 1 giờ, sẽ tự động refresh.")

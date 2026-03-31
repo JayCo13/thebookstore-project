@@ -312,7 +312,12 @@ export default function BookDetailsPage() {
           categories={(book.categories || []).map(cat => cat.name)}
           briefDescription={book.brief_description}
           fullDescription={book.full_description}
-          badges={book.is_best_seller ? ['Bestseller'] : book.is_new ? ['New'] : []}
+          badges={(() => {
+            const badgeList = [];
+            if (book.is_discount || book.discounted_price != null) badgeList.push('Giảm giá');
+            return badgeList;
+          })()}
+          isFreeShip={book.is_free_ship || book.isFreeShip}
           backLink={{ href: '/books', label: 'Books' }}
           showBreadcrumb={false}
           authorText={(book.authors && book.authors.length > 0) ? book.authors.map(a => a.name).join(', ') : undefined}

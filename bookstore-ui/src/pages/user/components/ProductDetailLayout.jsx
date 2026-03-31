@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import Image from '../compat/Image';
 import Link from '../compat/Link';
 import { parsePrice } from '../../../utils/currency';
+import { Helmet } from 'react-helmet-async';
 
 export default function ProductDetailLayout({
   title,
@@ -24,13 +25,59 @@ export default function ProductDetailLayout({
   isbnText,
   skuText,
   publishDateText,
+  isFreeShip = false,
 }) {
   const galleryImages = useMemo(() => images.filter(Boolean), [images]);
   const [selectedImage, setSelectedImage] = useState(galleryImages[0] || null);
   const [quantity, setQuantity] = useState(1);
 
+  // Determine current price value for schema
+  const currentPriceValue = discountPriceText ? parsePrice(discountPriceText) : parsePrice(priceText);
+  const priceValue = currentPriceValue || 0;
+
+  // JSON-LD Schema for Product
+  const productSchema = {
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    "name": title,
+    "image": galleryImages && galleryImages.length > 0 ? galleryImages : [],
+    "description": (briefDescription || "").replace(/<[^>]*>?/gm, ""), // Strip HTML
+    "sku": skuText,
+    "offers": {
+      "@type": "Offer",
+      "url": typeof window !== 'undefined' ? window.location.href : '',
+      "priceCurrency": "VND",
+      "price": priceValue,
+      "availability": stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      "itemCondition": "https://schema.org/NewCondition"
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="bg-gray-50 min-h-screen font-sans">
+      <Helmet>
+        <title>{`${title} - Tâm Nguồn Book`}</title>
+        <meta name="description" content={(briefDescription || "").replace(/<[^>]*>?/gm, "").substring(0, 160)} />
+
+        {/* Open Graph / Facebook */}
+        <meta property="og:type" content="product" />
+        <meta property="og:url" content={typeof window !== 'undefined' ? window.location.href : ''} />
+        <meta property="og:title" content={`${title} - Tâm Nguồn Book`} />
+        <meta property="og:description" content={(briefDescription || "").replace(/<[^>]*>?/gm, "").substring(0, 200)} />
+        {galleryImages && galleryImages.length > 0 && <meta property="og:image" content={galleryImages[0]} />}
+
+        {/* Twitter */}
+        <meta property="twitter:card" content="summary_large_image" />
+        <meta property="twitter:title" content={title} />
+        <meta property="twitter:description" content={(briefDescription || "").replace(/<[^>]*>?/gm, "").substring(0, 200)} />
+        {galleryImages && galleryImages.length > 0 && <meta property="twitter:image" content={galleryImages[0]} />}
+
+        {/* Schema.org JSON-LD */}
+        <script type="application/ld+json">
+          {JSON.stringify(productSchema)}
+        </script>
+      </Helmet>
+
       {showBreadcrumb && (
         <div className="bg-white border-b mt-16 md:mt-20">
           <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -63,6 +110,14 @@ export default function ProductDetailLayout({
                     {badges[0]}
                   </div>
                 )}
+                {isFreeShip && (
+                  <div className={`absolute ${badges && badges.length > 0 ? 'top-12' : 'top-4'} left-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1`}>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+                    </svg>
+                    Miễn phí ship
+                  </div>
+                )}
                 {discountPriceText && oldPriceText && (
                   (() => {
                     const op = parsePrice(oldPriceText);
@@ -93,23 +148,23 @@ export default function ProductDetailLayout({
 
             {/* Product Information */}
             <div className="lg:col-span-3 space-y-6">
-              {/* Title */}
-              <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                <div className="flex-1">
-                  <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 leading-tight">{title}</h1>
-                  {(authorText || publishDateText) && (
-                    <div className="mt-3 text-lg md:text-2xl text-gray-600">
-                      {authorText && (
-                        <span>
-                          <span className="font-bold">Tác giả:</span> {authorText}
-                        </span>
-                      )}
-                    </div>
-                  )}
+              {/* Sample Buttons (Top Row) */}
+              {children && (
+                <div className="flex items-center justify-end gap-3 pb-2">
+                  {children}
                 </div>
-                {children && (
-                  <div className="flex items-center gap-2 flex-shrink-0 self-start md:self-auto">
-                    {children}
+              )}
+
+              {/* Title */}
+              <div className="w-full flex flex-col">
+                <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 leading-tight text-center">{title}</h1>
+                {(authorText || publishDateText) && (
+                  <div className="mt-3 text-lg md:text-2xl text-gray-600">
+                    {authorText && (
+                      <span>
+                        <span className="font-bold">Tác giả:</span> {authorText}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

@@ -4,11 +4,105 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import os
+import asyncio
+import logging
 from app.config import settings
 from app.database import engine, get_db
 from app.models.models import Base
-from app.routers import auth, books, orders, addresses, users, authors, categories, chat, reviews, moderation, stationery, slides, notifications
+from app.routers import auth, books, orders, addresses, users, authors, categories, chat, reviews, moderation, stationery, slides, notifications, seo, import_books
 from app.auth.auth import init_roles, create_admin_user
+
+logger = logging.getLogger(__name__)
+
+# Background task for admin code rotation
+async def admin_code_rotation_scheduler():
+    """Background task that checks and rotates admin login code every hour."""
+    from app.services.admin_code_service import rotate_code_if_needed
+    
+    while True:
+        try:
+            # Wait 1 hour between checks
+            await asyncio.sleep(3600)  # 3600 seconds = 1 hour
+            
+            # Get a fresh database session
+            db = next(get_db())
+            try:
+                rotated = await rotate_code_if_needed(db)
+                if rotated:
+                    logger.info("Admin login code was auto-rotated by scheduler")
+            except Exception as e:
+                logger.error(f"Admin code rotation check failed: {e}")
+            finally:
+                db.close()
+                
+        except asyncio.CancelledError:
+            logger.info("Admin code rotation scheduler stopped")
+            break
+        except Exception as e:
+            logger.error(f"Admin code scheduler error: {e}")
+            # Continue running even on errors
+            await asyncio.sleep(60)  # Wait 1 minute before retry on error
+
+
+# Background task for Zalo token refresh
+async def zalo_token_refresh_scheduler():
+    """Background task that proactively refreshes Zalo OA tokens before they expire.
+    
+    Per Zalo v4 docs: access tokens last ~1 hour, so we check every 30 minutes
+    and refresh if expiring within 15 minutes.
+    """
+    from app.services.zalo_service import zalo_service
+    from app.models.zalo_tokens import ZaloToken
+    from datetime import datetime, timedelta
+    
+    # Wait 1 minute on startup before first check
+    await asyncio.sleep(60)
+    
+    while True:
+        try:
+            # Get a fresh database session
+            db = next(get_db())
+            try:
+                # Get all non-pending tokens
+                tokens = db.query(ZaloToken).filter(ZaloToken.oa_id != "pending").all()
+                
+                for token in tokens:
+                    now = datetime.utcnow()
+                    
+                    # Check if refresh token is expired - can't do anything
+                    if now >= token.refresh_expires_at:
+                        logger.warning(f"Zalo refresh token expired for OA {token.oa_id}. Manual re-authorization required.")
+                        continue
+                    
+                    # Proactively refresh if access token expires within 15 minutes
+                    time_until_expiry = token.expires_at - now
+                    if time_until_expiry < timedelta(minutes=15):
+                        logger.info(f"Zalo access token for OA {token.oa_id} expires in {time_until_expiry}. Refreshing proactively...")
+                        
+                        new_token = await zalo_service.refresh_access_token(db, token)
+                        if new_token:
+                            logger.info(f"Zalo token refreshed successfully for OA {token.oa_id}")
+                        else:
+                            logger.error(f"Failed to refresh Zalo token for OA {token.oa_id}")
+                    else:
+                        minutes_left = time_until_expiry.total_seconds() / 60
+                        logger.debug(f"Zalo token for OA {token.oa_id} still valid for {minutes_left:.1f} minutes")
+                        
+            except Exception as e:
+                logger.error(f"Zalo token refresh check failed: {e}")
+            finally:
+                db.close()
+            
+            # Check every 30 minutes (since tokens last ~1 hour)
+            await asyncio.sleep(1800)  # 1800 seconds = 30 minutes
+                
+        except asyncio.CancelledError:
+            logger.info("Zalo token refresh scheduler stopped")
+            break
+        except Exception as e:
+            logger.error(f"Zalo token scheduler error: {e}")
+            # Wait 5 minutes before retry on error
+            await asyncio.sleep(300)
 
 
 @asynccontextmanager
@@ -42,9 +136,24 @@ async def lifespan(app: FastAPI):
     os.makedirs(os.path.join(settings.upload_dir, "stationery"), exist_ok=True)
     os.makedirs(os.path.join(settings.upload_dir, "optimized"), exist_ok=True)
     
+    # Start background schedulers
+    admin_rotation_task = asyncio.create_task(admin_code_rotation_scheduler())
+    zalo_refresh_task = asyncio.create_task(zalo_token_refresh_scheduler())
+    logger.info("Background schedulers started: admin code rotation, zalo token refresh")
+    
     yield
     
-    # Shutdown
+    # Shutdown - cancel background tasks
+    admin_rotation_task.cancel()
+    zalo_refresh_task.cancel()
+    try:
+        await admin_rotation_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await zalo_refresh_task
+    except asyncio.CancelledError:
+        pass
     print("Shutting down...")
 
 
@@ -86,6 +195,8 @@ app.include_router(moderation.router, prefix="/api/v1")
 app.include_router(stationery.router, prefix="/api/v1")
 app.include_router(slides.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
+app.include_router(seo.router, prefix="/api/v1")
+app.include_router(import_books.router, prefix="/api/v1")
 
 
 @app.get("/")

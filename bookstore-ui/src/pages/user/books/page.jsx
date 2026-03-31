@@ -45,6 +45,8 @@ const formatBookData = (book) => {
 
   return {
     id: book.book_id,
+    book_id: book.book_id,
+    slug: book.slug,
     title: book.title || 'Untitled',
     author: book.authors && book.authors.length > 0 ? book.authors.map(a => a.name).join(', ') : 'Unknown Author',
     cover: coverUrl,
@@ -58,13 +60,12 @@ const formatBookData = (book) => {
     discountedPrice: discountedCalc != null ? formatPrice(discountedCalc) : null,
     price: discountedCalc != null ? formatPrice(discountedCalc) : formatPrice(basePrice),
     description: book.brief_description || book.full_description || 'No description available',
-    isBestSeller: book.is_best_seller || false,
-    isNewRelease: book.is_new || false,
+    tag: book.is_discount ? "Giảm giá" : (discountedCalc != null ? "Giảm giá" : null),
     pages: book.pages,
     publishDate: book.publication_date,
     isbn: book.isbn,
     genre: book.categories && book.categories.length > 0 ? book.categories.map(c => c.name).join(', ') : 'Unknown',
-    tag: book.is_best_seller ? "Best Seller" : book.is_new ? "New Release" : (discountedCalc != null ? "Discount" : null),
+
     stock_quantity: book.stock_quantity || 0,
     total_sold: book.total_sold || 0  // Sales data from backend
   };
