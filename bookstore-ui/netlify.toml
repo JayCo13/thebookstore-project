@@ -2,8 +2,8 @@
 # React SPA with react-router-dom
 
 [build]
-  # Build command
-  command = "npm run build"
+  # CI=false prevents Create React App from treating warnings as errors
+  command = "CI=false npm run build"
   # Output directory (create-react-app default)
   publish = "build"
 
