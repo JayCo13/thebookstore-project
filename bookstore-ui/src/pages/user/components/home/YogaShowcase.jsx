@@ -118,6 +118,11 @@ export default function YogaShowcase() {
     if (typeof document !== 'undefined') document.body.style.overflow = 'auto';
   };
 
+  // Don't render if no items
+  if (!loading && items.length === 0) {
+    return null;
+  }
+
   if (loading) {
     return (
       <section className="py-20 px-6 lg:px-8 max-w-7xl mx-auto">
