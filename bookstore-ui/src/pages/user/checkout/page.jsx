@@ -13,7 +13,8 @@ import { Truck, PartyPopper, Banknote } from 'lucide-react';
 import {
   getAddresses,
   createAddress,
-  createOrder
+  createOrder,
+  createPayOSLink
 } from '../../../service/api';
 import { formatShippingFee } from '../../../service/ghnService';
 import { formatPrice, parsePrice, formatPriceForInput } from '../../../utils/currency';
@@ -333,7 +334,8 @@ export default function CheckoutPage() {
         // Add shipping fee information (0 if any item has free shipping)
         shipping_fee: hasFreeShipItem ? 0 : (shippingFee?.total || 0),
         shipping_method: hasFreeShipItem ? 'Free Shipping' : 'GHN Express',
-        // Add payment method and cod_amount logic
+        // Add payment method and cod_amount logic.
+        // For PayOS the courier collects nothing on delivery — cod_amount must be 0.
         payment_method: formData.paymentMethod,
         cod_amount: formData.paymentMethod === 'cod' ? getCartTotalRaw() : 0
       };
@@ -496,7 +498,7 @@ export default function CheckoutPage() {
       console.groupEnd();
 
       if (result && (result.order_id || result.id)) {
-        showToast('Đặt hàng thành công!', 'success');
+        const orderId = result.order_id || result.id;
 
         // Auto-save phone number for authenticated users
         if (isAuthenticated && formData.phone && formData.phone.trim()) {
@@ -510,10 +512,32 @@ export default function CheckoutPage() {
           }
         }
 
-        clearCart();
+        // PayOS branch: order is created but unpaid. Generate a hosted payment
+        // link and redirect the browser. GHN submission + ZNS are deferred on
+        // the backend until the PayOS webhook confirms payment.
+        if (formData.paymentMethod === 'payos') {
+          try {
+            const linkResp = await createPayOSLink(orderId);
+            const checkoutUrl = linkResp?.checkout_url;
+            if (!checkoutUrl) {
+              throw new Error('PayOS không trả về link thanh toán');
+            }
+            clearCart();
+            showToast('Đang chuyển đến cổng thanh toán PayOS...', 'success');
+            window.location.href = checkoutUrl;
+            return;
+          } catch (payosErr) {
+            console.error('PayOS link creation failed:', payosErr);
+            showToast(
+              `Không thể tạo link thanh toán PayOS. Vui lòng thử lại hoặc chọn COD. (${payosErr?.message || 'unknown'})`,
+              'error'
+            );
+            return;
+          }
+        }
 
-        // Navigate to success page with order ID
-        const orderId = result.order_id || result.id;
+        showToast('Đặt hàng thành công!', 'success');
+        clearCart();
         navigate(`/checkout/success?orderId=${orderId}`);
       } else {
         throw new Error('Invalid response from server');
@@ -884,6 +908,27 @@ export default function CheckoutPage() {
                   <div className="flex items-center">
                     <div className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center">
                       <Banknote className="w-5 h-5 text-white" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-3 border p-4 rounded-md">
+                  <input
+                    type="radio"
+                    id="payos"
+                    name="paymentMethod"
+                    value="payos"
+                    checked={formData.paymentMethod === 'payos'}
+                    onChange={(e) => handlePaymentMethodChange(e.target.value)}
+                    className="h-4 w-4 text-[#008080] focus:ring-[#008080]"
+                  />
+                  <label htmlFor="payos" className="flex-1 cursor-pointer">
+                    <div className="font-medium">Thanh toán online (PayOS)</div>
+                    <div className="text-sm text-gray-500">Quét QR / chuyển khoản ngân hàng qua PayOS</div>
+                  </label>
+                  <div className="flex items-center">
+                    <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">QR</span>
                     </div>
                   </div>
                 </div>

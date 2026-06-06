@@ -20,32 +20,17 @@ export default function VerifyEmailForm() {
     }
   }, [searchParams]);
 
-  const verifyEmail = async (verificationToken) => {
+  const verifyEmail = async (_verificationToken) => {
     setError('');
     setLoading(true);
-
     try {
-      const response = await fetch(`/api/auth/verify-email/${verificationToken}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'Không thể xác minh email');
-      }
-
+      // Email confirmation is now handled by Supabase Auth's own confirmation
+      // link (supabase-js consumes the session from the URL automatically). If
+      // the user lands here, the email is already confirmed — send them to login.
       setSuccess(true);
-
       setTimeout(() => {
         navigate('/login');
       }, 3000);
-    } catch (error) {
-      setError(error.message);
-      console.error('Email verification error:', error);
     } finally {
       setLoading(false);
     }

@@ -2,8 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUpTrayIcon, DocumentArrowDownIcon, CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import './ImportBooks.css';
-
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+import { importBooks } from '../../service';
 
 export default function ImportBooks() {
   const navigate = useNavigate();
@@ -57,26 +56,8 @@ export default function ImportBooks() {
     setResult(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-
-      const token = localStorage.getItem('authToken') || (() => {
-        try { return JSON.parse(localStorage.getItem('user'))?.access_token; } catch { return null; }
-      })();
-      const response = await fetch(`${API_BASE}/api/v1/books/import-xlsx`, {
-        method: 'POST',
-        headers: {
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.detail || `Server error: ${response.status}`);
-      }
-
-      const data = await response.json();
+      // Calls the import-books Edge Function (supabase-js attaches the admin session).
+      const data = await importBooks(selectedFile);
       setResult(data);
     } catch (err) {
       setError(err.message || 'Đã xảy ra lỗi khi import');

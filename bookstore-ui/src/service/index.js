@@ -1,112 +1,18 @@
 /**
  * Service Layer Index
- * 
- * This file exports all services used in the application.
- * It provides a centralized access point for all API services.
+ *
+ * Centralized access point for the API service. Re-exports EVERYTHING from
+ * api.js (which, post-cutover, re-exports the Supabase-backed apiSupabase.js)
+ * so any function the app imports from '../../service' is available — no more
+ * hand-maintained allow-list that silently drops functions.
  */
 
-// Export the main API service
-export { default as apiService, ApiError, HttpClient } from './api.js';
+// Re-export the default instance under the `apiService` name.
+export { default as apiService } from './api.js';
 
-// Export individual service methods for convenience
-export {
-  // Authentication
-  login,
-  register,
-  adminLogin,
-  logout,
-  refreshToken,
-  getCurrentUser,
+// Re-export ALL named exports (login, getBookCoverUrl, notifications, stationery,
+// addresses, payments, uploads, ApiError, HttpClient, ... everything).
+export * from './api.js';
 
-  // Books
-  getBooks,
-  getBook,
-  getBookBySlug,
-  createBook,
-  updateBook,
-  deleteBook,
-  uploadBookCover,
-  searchBooks,
-  getFeaturedBooks,
-  getFeaturedStationery,
-  getBestSellerBooks,
-  getLatestStationery,
-  getSlideBooks,
-  getSlideStationery,
-  getStationeryBySlug,
-
-  // Categories
-  getCategories,
-  getCategory,
-  getBooksByCategory,
-  createCategory,
-  updateCategory,
-  deleteCategory,
-
-  // Authors
-  getAuthors,
-  getAuthor,
-  getBooksByAuthor,
-  createAuthor,
-  updateAuthor,
-  deleteAuthor,
-
-  // Cart
-  getCart,
-  addToCart,
-  updateCartItem,
-  removeFromCart,
-  clearCart,
-
-  // Wishlist
-  getWishlist,
-  addToWishlist,
-  removeFromWishlist,
-  clearWishlist,
-
-  // Orders
-  getOrders,
-  getOrder,
-  createOrder,
-  updateOrderStatus,
-  cancelOrder,
-  syncGhnStatus,
-  getAllOrders,
-  getAllOrdersAdmin,
-  getOrderShippingStatus,
-
-  // Users
-  getUserProfile,
-  updateUserProfile,
-  changePassword,
-  getAllUsers,
-  getUserById,
-  updateUser,
-  updateUserStatus,
-  deleteUser,
-
-  // Reviews
-  getBookReviews,
-  getAllReviews,
-  createReview,
-  updateReview,
-  deleteReview,
-
-  // Analytics
-  getDashboardAnalytics,
-  getSalesAnalytics,
-  getBookAnalytics,
-  getUserAnalytics,
-
-  // Utility
-  healthCheck,
-  getVersion,
-  uploadImage,
-  // Slides
-  getSlideContents,
-  getSlideContent,
-  updateSlideContent,
-} from './api.js';
-
-// Default export is the main API service
+// Default export is the main API service.
 export { default } from './api.js';

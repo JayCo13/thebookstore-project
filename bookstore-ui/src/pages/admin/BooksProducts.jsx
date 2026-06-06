@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Button, Input } from '../../components';
 import { useNavigate } from 'react-router-dom';
 import { Squares2X2Icon, ListBulletIcon, PencilSquareIcon, TrashIcon, PlusIcon, DocumentArrowUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
-import { getBooks, getCategories, getAuthors, deleteBook, updateBook } from '../../service';
+import { getBooks, getCategories, getAuthors, deleteBook, updateBook, getBookCoverUrl } from '../../service';
 import { formatPrice } from '../../utils/currency';
 import './BooksProducts.css';
 
@@ -372,7 +372,7 @@ const BooksProducts = () => {
             const currentStock = b.stock_quantity || 0;
             const maxStock = 100; // Assume max stock for progress calculation
             const ratio = Math.min(currentStock / maxStock, 1);
-            const imageUrl = b.image_url ? `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}${b.image_url}` : '/assets/placeholder-book.jpg';
+            const imageUrl = b.image_url ? getBookCoverUrl(b.image_url) : '/assets/placeholder-book.jpg';
 
             return (
               <div key={b.book_id} className="list-row">
@@ -426,7 +426,7 @@ const BooksProducts = () => {
             const currentStock = b.stock_quantity || 0;
             const maxStock = 100;
             const ratio = Math.min(currentStock / maxStock, 1);
-            const imageUrl = b.image_url ? `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}${b.image_url}` : '/assets/placeholder-book.jpg';
+            const imageUrl = b.image_url ? getBookCoverUrl(b.image_url) : '/assets/placeholder-book.jpg';
 
             return (
               <div key={b.book_id} className="card">

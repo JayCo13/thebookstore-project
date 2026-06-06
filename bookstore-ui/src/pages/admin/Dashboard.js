@@ -370,7 +370,7 @@ const Dashboard = () => {
             </select>
           </div>
           <Button variant="outline">Xuất CSV</Button>
-          <ZaloConnectButton status={zaloStatus} setStatus={setZaloStatus} />
+          {/* Zalo OA retired — order notifications now go by email. */}
         </div>
       </div>
 

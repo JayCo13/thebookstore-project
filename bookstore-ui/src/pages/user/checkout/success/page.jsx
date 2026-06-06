@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { getOrder } from '../../../../service/api';
+import { getOrder, createPayOSLink } from '../../../../service/api';
 import { formatPrice } from '../../../../utils/currency';
 
 export default function CheckoutSuccessPage() {
@@ -13,7 +13,12 @@ export default function CheckoutSuccessPage() {
   const [error, setError] = useState(null);
   const [isNewAccount, setIsNewAccount] = useState(false);
 
-  const orderId = searchParams.get('orderId');
+  // The PayOS return URL sends `orderCode` (which equals our order_id) plus
+  // `status` and `cancel` flags. Native success redirects from our own
+  // checkout form use `orderId`. Accept either so a single success page works.
+  const orderId = searchParams.get('orderId') || searchParams.get('orderCode');
+  const payosStatus = searchParams.get('status');
+  const payosCancelled = searchParams.get('cancel') === 'true';
 
   useEffect(() => {
     const loadOrderDetails = async () => {
@@ -146,18 +151,65 @@ export default function CheckoutSuccessPage() {
 
   const isGuestView = !isAuthenticated;
 
+  // Payment-aware state. A PayOS order is only "successful" once actually paid;
+  // until then (or if cancelled) the page must NOT claim success.
+  const isPayos = String(order.payment_method || '').toLowerCase() === 'payos';
+  const isPaid = String(order.payment_status || '').toLowerCase() === 'paid' || payosStatus === 'PAID';
+  const isCancelled = payosCancelled || payosStatus === 'CANCELLED';
+  const pendingPayment = isPayos && !isPaid; // unpaid PayOS (cancelled or just not paid yet)
+
+  const handlePayAgain = async () => {
+    try {
+      const resp = await createPayOSLink(order.order_id || order.id);
+      if (resp?.checkout_url) window.location.href = resp.checkout_url;
+    } catch (e) {
+      console.error('Re-create PayOS link failed:', e);
+    }
+  };
+
+  const orderItems = order.order_items || order.items || [];
+  const grandTotal = (order.total_amount || 0) + (order.shipping_fee || 0);
+
   return (
     <div className="container mx-auto px-4 pt-28 pb-16">
       <div className="max-w-3xl mx-auto">
-        {/* Success Header */}
+        {/* Header — reflects real payment state */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 mx-auto mb-6 bg-green-100 rounded-full flex items-center justify-center">
-            <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Đơn hàng đã được xác nhận!</h1>
-          <p className="text-gray-600 text-lg">Cảm ơn bạn đã đặt hàng. Đơn hàng của bạn đã được đặt thành công.</p>
+          {pendingPayment ? (
+            <>
+              <div className="w-20 h-20 mx-auto mb-6 bg-amber-100 rounded-full flex items-center justify-center">
+                <svg className="w-10 h-10 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Đơn hàng đang chờ thanh toán</h1>
+              <p className="text-gray-600 text-lg">
+                {isCancelled
+                  ? 'Bạn đã huỷ/chưa hoàn tất thanh toán PayOS. Đơn hàng được giữ ở trạng thái chờ thanh toán.'
+                  : 'Đơn hàng của bạn đã được tạo nhưng chưa nhận được xác nhận thanh toán từ PayOS.'}
+              </p>
+              <button
+                onClick={handlePayAgain}
+                className="mt-4 bg-[#008080] text-white px-6 py-3 rounded-md hover:bg-[#006666] transition-colors font-medium"
+              >
+                Thanh toán ngay
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="w-20 h-20 mx-auto mb-6 bg-green-100 rounded-full flex items-center justify-center">
+                <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Đơn hàng đã được xác nhận!</h1>
+              <p className="text-gray-600 text-lg">
+                {isPayos
+                  ? 'Thanh toán PayOS thành công. Đơn hàng của bạn đã được xác nhận.'
+                  : 'Cảm ơn bạn đã đặt hàng. Đơn hàng của bạn đã được đặt thành công (thanh toán khi nhận hàng).'}
+              </p>
+            </>
+          )}
         </div>
 
         {/* Order Summary Card */}
@@ -185,18 +237,23 @@ export default function CheckoutSuccessPage() {
             <div className="border-b border-gray-200 pb-4 mb-4">
               <div className="flex justify-between items-start">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">Đơn hàng #{order.id}</h2>
-                  <p className="text-gray-600">Đặt hàng vào {formatDate(order.created_at)}</p>
+                  <h2 className="text-xl font-bold text-gray-900">Đơn hàng #{order.order_id || order.id}</h2>
+                  <p className="text-gray-600">Đặt hàng vào {formatDate(order.order_date || order.created_at)}</p>
                 </div>
                 <div className="text-right">
-                  <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
-                      order.status === 'shipped' ? 'bg-purple-100 text-purple-800' :
-                        order.status === 'delivered' ? 'bg-green-100 text-green-800' :
-                          'bg-gray-100 text-gray-800'
-                    }`}>
-                    {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                  </span>
+                  {(() => {
+                    const st = String(order.status || '').toLowerCase();
+                    const cls = st === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      st === 'processing' ? 'bg-blue-100 text-blue-800' :
+                        st === 'shipped' ? 'bg-purple-100 text-purple-800' :
+                          st === 'delivered' ? 'bg-green-100 text-green-800' :
+                            'bg-gray-100 text-gray-800';
+                    return (
+                      <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${cls}`}>
+                        {String(order.status || '').charAt(0).toUpperCase() + String(order.status || '').slice(1)}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -204,7 +261,7 @@ export default function CheckoutSuccessPage() {
             {/* Order Items */}
             <div className="space-y-4 mb-6">
               <h3 className="font-semibold text-gray-900">Danh sách sản phẩm</h3>
-              {order.items && order.items.map((item, index) => (
+              {orderItems.map((item, index) => (
                 <div key={index} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
                   <div className="w-16 h-20 bg-gray-200 rounded flex items-center justify-center">
                     <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -212,32 +269,28 @@ export default function CheckoutSuccessPage() {
                     </svg>
                   </div>
                   <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">{item.book_title || `Book ID: ${item.book_id}`}</h4>
-                    <p className="text-gray-600">Quantity: {item.quantity}</p>
+                    <h4 className="font-medium text-gray-900">{item.book?.title || item.stationery?.title || item.book_title || `#${item.book_id || item.stationery_id}`}</h4>
+                    <p className="text-gray-600">Số lượng: {item.quantity}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-gray-900">{formatPrice(item.price)}</p>
-                    <p className="text-sm text-gray-600">each</p>
+                    <p className="font-semibold text-gray-900">{formatPrice(item.price_at_purchase ?? item.price)}</p>
                   </div>
                 </div>
               ))}
             </div>
 
             {/* Shipping Details */}
-            {order.shipping_details && (
+            {order.shipping_address_line1 && (
               <div className="border-t border-gray-200 pt-4 mb-6">
                 <h3 className="font-semibold text-gray-900 mb-3">Địa chỉ giao hàng</h3>
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="font-medium text-gray-900">
-                    {order.shipping_details.first_name} {order.shipping_details.last_name}
-                  </p>
-                  <p className="text-gray-600">{order.shipping_details.address_line_1}</p>
+                  <p className="font-medium text-gray-900">{order.shipping_full_name}</p>
                   <p className="text-gray-600">
-                    {order.shipping_details.city}, {order.shipping_details.postal_code}
+                    {[order.shipping_address_line1, order.ghn_ward_name, order.ghn_district_name, order.ghn_province_name]
+                      .filter(Boolean).join(', ')}
                   </p>
-                  <p className="text-gray-600">{order.shipping_details.country}</p>
-                  {order.shipping_details.phone_number && (
-                    <p className="text-gray-600 mt-2">Số điện thoại: {order.shipping_details.phone_number}</p>
+                  {order.shipping_phone_number && (
+                    <p className="text-gray-600 mt-2">Số điện thoại: {order.shipping_phone_number}</p>
                   )}
                 </div>
               </div>
@@ -274,19 +327,21 @@ export default function CheckoutSuccessPage() {
               <svg className="w-5 h-5 text-blue-500 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              Cảm ơn bạn đã đặt hàng. Thông tin chi tiết đã được gửi qua Zalo của bạn.
+              {pendingPayment
+                ? 'Đơn hàng sẽ được xử lý ngay sau khi thanh toán PayOS được xác nhận.'
+                : 'Email xác nhận đơn hàng đã được gửi tới bạn.'}
             </li>
             <li className="flex items-start">
               <svg className="w-5 h-5 text-blue-500 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              Bạn có thể theo dõi trạng thái đơn hàng qua zalo.
+              Bạn có thể theo dõi trạng thái đơn hàng trong mục "Đơn hàng".
             </li>
             <li className="flex items-start">
               <svg className="w-5 h-5 text-blue-500 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
-              Mọi câu hỏi hoặc vấn đề liên quan đến đơn hàng, vui lòng liên hệ với chúng tôi qua zalo.
+              Mọi câu hỏi liên quan đến đơn hàng, vui lòng liên hệ với chúng tôi.
             </li>
           </ul>
         </div>
