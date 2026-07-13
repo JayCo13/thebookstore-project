@@ -185,9 +185,14 @@ export async function submitGhnOrder(input: GhnOrderInput): Promise<string | nul
   // payment_type_id: free-ship or prepaid (cod 0) → 1 (shop pays); COD → 2.
   const paymentTypeId = input.hasFreeShip ? 1 : (input.codAmount > 0 ? 2 : 1);
 
+  // GHN's create API rejects non-integer length/width/height/weight (the old
+  // Python service cast every dimension with int()). Book/stationery rows can
+  // carry decimal cm (e.g. 15.50, 23.50), so round here or GHN returns 400 and
+  // the order silently ends up with no shipping label.
+  const dim = (v: number, fallback: number) => Math.max(1, Math.round(v) || fallback);
   const items = input.items.map((i) => ({
     name: i.name, quantity: i.quantity, price: Math.round(i.price),
-    length: i.length || 20, width: i.width || 15, height: i.height || 10, weight: i.weight || 300,
+    length: dim(i.length, 20), width: dim(i.width, 15), height: dim(i.height, 10), weight: dim(i.weight, 300),
   }));
   const totalWeight = Math.max(items.reduce((s, i) => s + i.weight * i.quantity, 0), 300);
   const maxLength = items.length ? Math.max(...items.map((i) => i.length)) : 20;

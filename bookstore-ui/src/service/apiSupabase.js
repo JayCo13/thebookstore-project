@@ -500,15 +500,18 @@ export const importBooks = (file) => {
 // Storage. Prepend the legacy static host for relative/`/static/` paths; pass
 // absolute URLs (Storage public URLs) through untouched.
 const LEGACY_STATIC = (process.env.REACT_APP_LEGACY_STATIC_URL || 'https://api.tamnguon.com').replace(/\/$/, '');
+const SUPABASE_HOST = (process.env.REACT_APP_SUPABASE_URL || '').replace(/\/$/, '');
 export function getBookCoverUrl(imageUrl) {
   if (!imageUrl) return null;
-  if (imageUrl.startsWith('http')) return imageUrl;              // Supabase Storage (absolute)
-  if (imageUrl.startsWith('/')) return `${LEGACY_STATIC}${imageUrl}`; // /static/... on the VPS
+  if (imageUrl.startsWith('http')) return imageUrl;                    // Supabase Storage (absolute)
+  if (imageUrl.startsWith('/storage/')) return `${SUPABASE_HOST}${imageUrl}`; // Storage relative URL (getPublicUrl w/o host)
+  if (imageUrl.startsWith('/')) return `${LEGACY_STATIC}${imageUrl}`;  // /static/... on the VPS
   return `${LEGACY_STATIC}/static/${imageUrl}`;
 }
 export function getStaticFileUrl(p) {
   if (!p) return null;
   if (p.startsWith('http')) return p;
+  if (p.startsWith('/storage/')) return `${SUPABASE_HOST}${p}`;
   return `${LEGACY_STATIC}${p.startsWith('/') ? '' : '/static/'}${p}`;
 }
 export const uploadBookCover = (id, file) => uploadBookImage(id, file);

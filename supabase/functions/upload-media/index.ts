@@ -85,7 +85,15 @@ Deno.serve(async (req) => {
       console.error("Storage upload failed", upErr);
       return json(req, { detail: `Upload failed: ${upErr.message}` }, 500);
     }
-    publicUrls.push(supabase.storage.from(cfg.bucket).getPublicUrl(path).data.publicUrl);
+    // getPublicUrl can return a host-less "/storage/v1/object/public/..." path
+    // (observed on some deploys); normalise to an absolute URL so the row never
+    // stores a relative path the frontend would resolve against the wrong host.
+    let publicUrl = supabase.storage.from(cfg.bucket).getPublicUrl(path).data.publicUrl;
+    if (publicUrl.startsWith("/")) {
+      const base = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/$/, "");
+      publicUrl = base + publicUrl;
+    }
+    publicUrls.push(publicUrl);
     if (!cfg.multiple) break; // single-slot: only first file
   }
 
