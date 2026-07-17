@@ -79,6 +79,7 @@ export default function BookDetailsModal({ book, isOpen, onClose, addToCart, add
       author: book.author || (book.authors && book.authors.length > 0 ? book.authors[0].name : 'Unknown Author'),
       cover: book.cover || book.image_url,
       price: book.discountedPrice || book.price,
+      isFreeShip: book.is_free_ship || book.isFreeShip || false, // preserve free shipping flag
       quantity: currentQuantity
     };
     addToCart(cartItem);

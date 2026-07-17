@@ -129,6 +129,7 @@ export default function BookDetailsPage() {
         author: book.authors && book.authors.length > 0 ? book.authors[0].name : 'Unknown Author',
         price: formatPrice(book.price),
         cover: getBookCoverUrl(book.image_url),
+        isFreeShip: book.is_free_ship || book.isFreeShip || false, // preserve free shipping flag
         quantity: quantity // Add the exact selected quantity
       };
       addToCart(bookForCart);
@@ -435,6 +436,7 @@ export default function BookDetailsPage() {
                 author: book.authors && book.authors.length > 0 ? book.authors[0].name : 'Unknown Author',
                 price: formatPrice(book.discounted_price ?? book.price),
                 cover: getBookCoverUrl(book.image_url),
+                isFreeShip: book.is_free_ship || book.isFreeShip || false, // preserve free shipping flag
                 quantity: qty
               };
               addToCart(bookForCart);

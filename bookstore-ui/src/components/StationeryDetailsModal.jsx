@@ -47,6 +47,7 @@ export default function StationeryDetailsModal({ item, isOpen, onClose, addToCar
       title: item.title,
       cover: item.cover || item.image_url,
       price: item.discountedPrice || item.price,
+      isFreeShip: item.is_free_ship || item.isFreeShip || false, // preserve free shipping flag
       quantity: qty
     };
     addToCart(cartItem);

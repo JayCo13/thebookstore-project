@@ -46,6 +46,7 @@ export default function ProductInfo({ book }) {
       author: book.Author ?? book.author,
       cover: book.BookImage ?? book.cover,
       price: formatPrice(book.Price ?? book.price ?? 0),
+      isFreeShip: book.is_free_ship || book.isFreeShip || false, // preserve free shipping flag
       quantity: quantity || 1
     };
     addToCart(item);

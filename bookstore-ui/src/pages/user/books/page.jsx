@@ -490,6 +490,7 @@ export default function BooksPage() {
                           author: b.author,
                           cover: b.cover,
                           price: b.price,
+                          isFreeShip: b.isFreeShip || b.is_free_ship || book.is_free_ship || false, // preserve free shipping flag
                           quantity: 1
                         };
                         addToCart(cartItem);

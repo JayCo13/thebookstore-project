@@ -146,6 +146,7 @@ export default function WishlistPage() {
                                     author: item.author,
                                     cover: item.cover,
                                     price: item.price,
+                                    isFreeShip: item.isFreeShip || item.is_free_ship || false, // preserve free shipping flag
                                     quantity: currentQuantity
                                   };
                                   addToCart(cartItem);
@@ -245,6 +246,7 @@ export default function WishlistPage() {
                                   author: item.author,
                                   cover: item.cover,
                                   price: item.price,
+                                  isFreeShip: item.isFreeShip || item.is_free_ship || false, // preserve free shipping flag
                                   quantity: currentQuantity
                                 };
                                 addToCart(cartItem);

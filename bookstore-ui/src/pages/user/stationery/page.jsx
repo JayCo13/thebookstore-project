@@ -445,6 +445,7 @@ export default function StationeryPage() {
                           author: '',
                           cover: p.cover,
                           price: p.price,
+                          isFreeShip: p.isFreeShip || p.is_free_ship || item.is_free_ship || false, // preserve free shipping flag
                           quantity: 1
                         };
                         addToCart(cartItem);
