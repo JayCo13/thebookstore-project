@@ -324,10 +324,17 @@ export const deleteAuthor = async (id) => must(await supabase.from('authors').de
 // ============================================================================
 export const createOrder = (orderData) => invoke('create-order', orderData);
 export async function getOrders(params = {}) {
-  let q = supabase.from('orders').select(ORDER_SELECT).order('order_date', { ascending: false });
+  // Filter by the caller's user_id explicitly. RLS alone is not enough here:
+  // the guest-tracking policy is permissive, so an unfiltered select would OR
+  // in every guest order (other people's orders) alongside the caller's own.
+  const profile = await currentProfile();
+  if (!profile) return [];
+  let q = supabase.from('orders').select(ORDER_SELECT)
+    .eq('user_id', profile.user_id)
+    .order('order_date', { ascending: false });
   if (params.status_filter) q = q.eq('status', params.status_filter);
   if (params.limit) q = q.range(Number(params.skip || 0), Number(params.skip || 0) + Number(params.limit) - 1);
-  return must(await q); // RLS scopes to the caller's own orders
+  return must(await q);
 }
 export const getOrder = async (id) => must(await supabase.from('orders').select(ORDER_SELECT).eq('order_id', id).single());
 export async function getAllOrders(params = {}) {
