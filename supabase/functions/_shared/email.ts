@@ -63,6 +63,15 @@ interface OrderEmailData {
   items: Array<{ name: string; quantity: number; price: number }>;
 }
 
+// Every shipment goes out through GHN, so the carrier is a constant rather
+// than an order field. If a second carrier ever appears this becomes a lookup.
+const CARRIER_NAME = "Giao Hàng Nhanh (GHN)";
+
+/** GHN's public tracking page — no login needed, works for the recipient. */
+function ghnTrackingUrl(code: string): string {
+  return `https://donhang.ghn.vn/?order_code=${encodeURIComponent(code)}`;
+}
+
 function paymentLabel(order: Record<string, unknown>): string {
   const pm = String(order.payment_method ?? "").toLowerCase();
   const paid = String(order.payment_status ?? "").toLowerCase() === "paid";
@@ -86,6 +95,30 @@ export async function sendOrderConfirmationEmail(d: OrderEmailData): Promise<boo
     )
     .join("");
   const grandTotal = d.totalAmount + d.shippingFee;
+
+  // Carrier + tracking. When GHN hasn't accepted the order yet there's no code
+  // to track, so say that plainly instead of showing a dead button.
+  const shippingBlock = d.ghnCode
+    ? `<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f8ff;border:1px solid #cfe4ee;border-radius:6px;margin:20px 0;">
+      <tr><td style="padding:20px;">
+        <p style="margin:0 0 6px;color:#555;">Đơn vị vận chuyển: <strong>${CARRIER_NAME}</strong></p>
+        <p style="margin:0 0 16px;color:#555;">Mã vận đơn: <strong style="font-family:monospace;font-size:16px;letter-spacing:1px;">${d.ghnCode}</strong></p>
+        <a href="${ghnTrackingUrl(d.ghnCode)}" target="_blank"
+           style="display:inline-block;background:#008080;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:bold;">
+          Theo dõi đơn hàng
+        </a>
+        <p style="margin:14px 0 0;color:#888;font-size:12px;">
+          Hoặc mở liên kết: <a href="${ghnTrackingUrl(d.ghnCode)}" style="color:#008080;">${ghnTrackingUrl(d.ghnCode)}</a>
+        </p>
+      </td></tr>
+    </table>`
+    : `<table width="100%" cellpadding="0" cellspacing="0" style="background:#fffbe6;border:1px solid #ffe08a;border-radius:6px;margin:20px 0;">
+      <tr><td style="padding:20px;">
+        <p style="margin:0;color:#7a5b00;">Đơn hàng sẽ được giao qua <strong>${CARRIER_NAME}</strong>.
+        Chúng tôi sẽ gửi mã vận đơn và liên kết theo dõi ngay khi đơn được bàn giao cho đơn vị vận chuyển.</p>
+      </td></tr>
+    </table>`;
+
   const html = `<!DOCTYPE html><html lang="vi"><body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f5f5f5;">
 <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px;"><tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.1);">
@@ -103,8 +136,8 @@ export async function sendOrderConfirmationEmail(d: OrderEmailData): Promise<boo
       <p style="margin:6px 0;color:#555;">Phí vận chuyển: <strong>${vnd(d.shippingFee)}</strong></p>
       <p style="margin:6px 0;color:#008080;font-size:18px;">Tổng cộng: <strong>${vnd(grandTotal)}</strong></p>
       <p style="margin:6px 0;color:#555;">Phương thức: <strong>${d.paymentLabel}</strong></p>
-      ${d.ghnCode ? `<p style="margin:6px 0;color:#555;">Mã vận đơn GHN: <strong>${d.ghnCode}</strong></p>` : ""}
     </div>
+    ${shippingBlock}
     <p style="color:#333;line-height:1.8;margin-top:25px;">Giao đến: ${d.address}</p>
     <p style="color:#333;line-height:1.8;margin-top:25px;">Cảm ơn bạn đã mua sắm tại Book Tâm Nguồn!</p>
   </td></tr>
@@ -151,7 +184,12 @@ export async function sendNewOrderAdminEmail(d: OrderEmailData): Promise<boolean
       <p>Phí vận chuyển: <strong>${vnd(d.shippingFee)}</strong></p>
       <p style="font-size:18px;color:#2e7d32;">Tổng cộng: <strong>${vnd(grandTotal)}</strong></p>
       <p>Phương thức: <strong style="color:#e65100;">${d.paymentLabel}</strong></p>
-      <p>Mã vận đơn GHN: <strong>${d.ghnCode || "Chưa có"}</strong></p>
+      <p>Đơn vị vận chuyển: <strong>${CARRIER_NAME}</strong></p>
+      <p>Mã vận đơn GHN: ${
+        d.ghnCode
+          ? `<strong><a href="${ghnTrackingUrl(d.ghnCode)}" style="color:#008080;">${d.ghnCode}</a></strong>`
+          : `<strong style="color:#c62828;">Chưa có — đơn CHƯA sang GHN, cần kiểm tra</strong>`
+      }</p>
     </div>
   </td></tr>
 </table></td></tr></table></body></html>`;
