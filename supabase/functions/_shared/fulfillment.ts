@@ -68,12 +68,26 @@ export async function fulfillOrder(
   }
 
   // 1) GHN — idempotent on ghn_order_code.
+  //
+  // Whatever happens here gets written back to the order. A failed submit used
+  // to leave no trace anywhere except the function logs, so orders sat without
+  // a waybill indefinitely and nobody could tell why (or even that they had).
   let ghnCode = order.ghn_order_code as string | null;
   if (!ghnCode) {
-    if (!order.ghn_ward_code || !order.ghn_district_id || !order.shipping_phone_number) {
-      console.error(`Order ${orderId} missing GHN address fields; skipping submit`);
+    const missing = [
+      !order.ghn_ward_code && "ghn_ward_code",
+      !order.ghn_district_id && "ghn_district_id",
+      !order.shipping_phone_number && "shipping_phone_number",
+    ].filter(Boolean);
+
+    if (missing.length) {
+      const reason = `Thiếu thông tin giao hàng: ${missing.join(", ")}`;
+      console.error(`Order ${orderId}: ${reason}; skipping GHN submit`);
+      await supabase.from("orders")
+        .update({ ghn_error: reason, ghn_last_attempt_at: new Date().toISOString() })
+        .eq("order_id", orderId);
     } else {
-      ghnCode = await submitGhnOrder({
+      const result = await submitGhnOrder({
         toName: order.shipping_full_name ?? "Customer",
         toPhone: order.shipping_phone_number,
         toAddress: [order.shipping_address_line1, order.shipping_address_line2]
@@ -85,9 +99,21 @@ export async function fulfillOrder(
         items: lineItems,
         hasFreeShip,
       });
+      ghnCode = result.orderCode;
+
+      await supabase.from("orders").update({
+        ...(ghnCode ? { ghn_order_code: ghnCode } : {}),
+        ghn_error: result.error,
+        ghn_last_attempt_at: new Date().toISOString(),
+      }).eq("order_id", orderId);
+
       if (ghnCode) {
-        await supabase.from("orders").update({ ghn_order_code: ghnCode }).eq("order_id", orderId);
         order.ghn_order_code = ghnCode;
+      } else {
+        console.error(
+          `Order ${orderId} has no GHN waybill: ${result.error}` +
+          (result.retryable ? " (transient — safe to retry)" : " (needs the data fixed first)"),
+        );
       }
     }
   }

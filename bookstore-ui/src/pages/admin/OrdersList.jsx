@@ -90,8 +90,9 @@ const mapOrderToRow = (order) => {
   const total = formatPrice(totalRaw);
   const status = order?.status || 'pending';
   const ghnCode = order?.ghn_order_code || null;
+  const ghnError = order?.ghn_error || null;
   const idNum = parseInt(String(id).replace(/[^0-9]/g, ''), 10) || 0;
-  return { id, idNum, date, dateKey, dateMs, customer, address, paymentMethod, total, status, ghnCode, raw: order };
+  return { id, idNum, date, dateKey, dateMs, customer, address, paymentMethod, total, status, ghnCode, ghnError, raw: order };
 };
 
 
@@ -338,6 +339,13 @@ const OrdersList = () => {
                   <button className="link" onClick={() => navigate(`/admin/orders/${order.id}`)}>
                     {order.ghnCode || `#${order.id}`}
                   </button>
+                  {/* No waybill means GHN never accepted this order — it used to
+                      look identical to a normal one here. */}
+                  {!order.ghnCode && (
+                    <span className="no-waybill" title={order.ghnError || 'Chưa gửi sang GHN'}>
+                      Chưa có vận đơn
+                    </span>
+                  )}
                 </div>
                 <div className="col col-date">{order.date}</div>
                 <div className="col col-customer">{order.customer}</div>

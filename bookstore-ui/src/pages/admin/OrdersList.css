@@ -312,3 +312,13 @@
     display: none;
   }
 }
+/* Orders GHN never accepted. Without this they render as a plain "#12" and
+   look no different from an order that has a waybill. Hover shows ghn_error. */
+.no-waybill {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: #b91c1c;
+  cursor: help;
+}

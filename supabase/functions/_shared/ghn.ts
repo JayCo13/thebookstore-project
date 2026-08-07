@@ -196,9 +196,35 @@ function isValidVnPhone(p: string): boolean {
   return /^0[35789]\d{8}$/.test(p) || /^02\d{9}$/.test(p);
 }
 
-// Returns the GHN order_code, or null on failure. Caller persists it.
-export async function submitGhnOrder(input: GhnOrderInput): Promise<string | null> {
-  if (!ghnConfigured()) { console.error("GHN not configured"); return null; }
+export interface GhnSubmitResult {
+  /** GHN waybill code, or null when GHN refused / never answered. */
+  orderCode: string | null;
+  /** Why it failed, in a form worth showing an admin. Null on success. */
+  error: string | null;
+  /** True when retrying later could plausibly succeed (network/5xx/timeout). */
+  retryable: boolean;
+}
+
+const CREATE_TIMEOUT_MS = 30_000; // matches the old Python client's timeout
+const MAX_ATTEMPTS = 3;
+
+/**
+ * Submit the shipping order to GHN. Caller persists the result.
+ *
+ * Retries transient failures (network error, timeout, 5xx, GHN code >= 500).
+ * A 400 from GHN is a verdict on the payload — bad phone, bad ward — so
+ * retrying it just burns time and hides the real reason; those return
+ * immediately with `retryable: false`.
+ *
+ * Order #25 is why this exists: valid data, GHN accepted the identical payload
+ * on replay a day later, but the one live call failed and the order was left
+ * without a waybill forever because nothing retried and nothing recorded it.
+ */
+export async function submitGhnOrder(input: GhnOrderInput): Promise<GhnSubmitResult> {
+  if (!ghnConfigured()) {
+    console.error("GHN not configured");
+    return { orderCode: null, error: "GHN chưa được cấu hình (thiếu GHN_API_TOKEN/GHN_SHOP_ID)", retryable: false };
+  }
 
   const toPhone = normalizeVnPhone(input.toPhone);
   if (!isValidVnPhone(toPhone)) {
@@ -253,16 +279,43 @@ export async function submitGhnOrder(input: GhnOrderInput): Promise<string | nul
     items,
   };
 
-  try {
-    const resp = await fetch(`${API_BASE}/v2/shipping-order/create`, {
-      method: "POST", headers: headers(true), body: JSON.stringify(payload),
-    });
-    const body = await resp.json();
-    if (resp.ok && body?.code === 200) return body?.data?.order_code ?? null;
-    console.error("GHN create failed", resp.status, JSON.stringify(body).slice(0, 500));
-    return null;
-  } catch (e) {
-    console.error("GHN create error", e);
-    return null;
+  let lastError = "Không gọi được GHN";
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const resp = await fetch(`${API_BASE}/v2/shipping-order/create`, {
+        method: "POST",
+        headers: headers(true),
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
+      });
+      const body = await resp.json().catch(() => null);
+
+      if (resp.ok && body?.code === 200) {
+        const code = body?.data?.order_code ?? null;
+        if (code) return { orderCode: code, error: null, retryable: false };
+        lastError = "GHN trả về 200 nhưng không có order_code";
+      } else {
+        // GHN puts the useful text in `message`; keep it verbatim so an admin
+        // can act on it ("số điện thoại … không đúng" is self-explanatory).
+        const msg = body?.message ?? `HTTP ${resp.status}`;
+        lastError = `GHN từ chối: ${msg}`;
+        const transient = resp.status >= 500 || (typeof body?.code === "number" && body.code >= 500);
+        if (!transient) {
+          console.error("GHN create rejected", resp.status, JSON.stringify(body).slice(0, 500));
+          return { orderCode: null, error: lastError, retryable: false };
+        }
+      }
+    } catch (e) {
+      lastError = e instanceof Error && e.name === "TimeoutError"
+        ? `GHN không phản hồi trong ${CREATE_TIMEOUT_MS / 1000}s`
+        : `Lỗi kết nối GHN: ${e instanceof Error ? e.message : String(e)}`;
+    }
+
+    console.error(`GHN create attempt ${attempt}/${MAX_ATTEMPTS} failed: ${lastError}`);
+    if (attempt < MAX_ATTEMPTS) {
+      await new Promise((r) => setTimeout(r, 1000 * attempt)); // 1s, then 2s
+    }
   }
+
+  return { orderCode: null, error: lastError, retryable: true };
 }
