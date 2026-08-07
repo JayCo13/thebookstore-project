@@ -2,52 +2,51 @@
 // OAuth tokens to refresh/expire). Ported from app/services/email_service.py
 // (send_order_confirmation_email + send_new_order_admin_notification).
 //
-// Uses SMTP via denomailer with the existing Gmail credentials.
-// Secrets: MAIL_USERNAME, MAIL_PASSWORD, MAIL_SERVER (default smtp.gmail.com),
-//          MAIL_PORT (default 587), MAIL_FROM, MAIL_FROM_NAME, ADMIN_EMAIL.
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+// Sent via the Resend HTTP API. (Raw SMTP/denomailer does NOT work on Supabase
+// Edge Functions — the outbound TCP connection to Gmail hangs.) Resend has a
+// free tier: https://resend.com.
+// Secrets: RESEND_API_KEY, MAIL_FROM (a sender on your verified Resend domain,
+//          e.g. "no-reply@tamnguon.com"), MAIL_FROM_NAME, ADMIN_EMAIL.
 
 function vnd(amount: number): string {
   return `${Math.round(amount).toLocaleString("vi-VN").replace(/,/g, ".")} đ`;
 }
 
 function isConfigured(): boolean {
-  return Boolean(Deno.env.get("MAIL_USERNAME") && Deno.env.get("MAIL_PASSWORD"));
+  return Boolean(Deno.env.get("RESEND_API_KEY"));
 }
 
 async function send(to: string, subject: string, html: string): Promise<boolean> {
-  if (!isConfigured()) {
-    console.warn("Email not configured (MAIL_USERNAME/MAIL_PASSWORD); skipping send");
+  const apiKey = Deno.env.get("RESEND_API_KEY");
+  if (!apiKey) {
+    console.warn("RESEND_API_KEY not set; skipping email");
     return false;
   }
-  const port = Number(Deno.env.get("MAIL_PORT") ?? "587");
-  const client = new SMTPClient({
-    connection: {
-      hostname: Deno.env.get("MAIL_SERVER") ?? "smtp.gmail.com",
-      port,
-      tls: port === 465, // 465 = implicit TLS; 587 = STARTTLS (tls:false)
-      auth: {
-        username: Deno.env.get("MAIL_USERNAME")!,
-        password: Deno.env.get("MAIL_PASSWORD")!,
-      },
-    },
-  });
+  if (!to) {
+    console.warn("No recipient; skipping email");
+    return false;
+  }
   const fromName = Deno.env.get("MAIL_FROM_NAME") ?? "Book Tâm Nguồn";
-  const fromAddr = Deno.env.get("MAIL_FROM") ?? Deno.env.get("MAIL_USERNAME")!;
+  // Must be an address on a domain verified in Resend. onboarding@resend.dev
+  // works out-of-the-box but only delivers to your own Resend account email.
+  const fromAddr = Deno.env.get("MAIL_FROM") ?? "onboarding@resend.dev";
   try {
-    await client.send({
-      from: `${fromName} <${fromAddr}>`,
-      to,
-      subject,
-      html,
-      content: "text/html",
+    const resp = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from: `${fromName} <${fromAddr}>`, to: [to], subject, html }),
     });
+    if (!resp.ok) {
+      console.error("Resend send failed", resp.status, await resp.text());
+      return false;
+    }
     return true;
   } catch (e) {
-    console.error("Email send failed", e);
+    console.error("Resend send error", e);
     return false;
-  } finally {
-    try { await client.close(); } catch { /* ignore */ }
   }
 }
 
