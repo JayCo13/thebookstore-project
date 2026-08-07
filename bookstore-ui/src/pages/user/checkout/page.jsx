@@ -18,6 +18,7 @@ import {
 } from '../../../service/api';
 import { formatShippingFee } from '../../../service/ghnService';
 import { formatPrice, parsePrice, formatPriceForInput } from '../../../utils/currency';
+import { normalizeVnPhone, isValidVnPhone, PHONE_ERROR_MESSAGE } from '../../../utils/phone';
 import SearchableSelect from '../../../components/SearchableSelect';
 import GuestAccountDialog from '../../../components/GuestAccountDialog';
 
@@ -249,6 +250,13 @@ export default function CheckoutPage() {
         return;
       }
 
+      // Catch a bad phone here, before the guest dialog — GHN rejects the
+      // shipping order over it and the customer would never find out.
+      if (!isValidVnPhone(formData.phone)) {
+        showToast(PHONE_ERROR_MESSAGE, 'error');
+        return;
+      }
+
       // Show guest account dialog
       setShowGuestDialog(true);
       return;
@@ -290,12 +298,17 @@ export default function CheckoutPage() {
         return;
       }
 
-      // Validate phone number (basic validation)
-      const phoneRegex = /^[\+]?[0-9][\d]{0,15}$/;
-      if (!phoneRegex.test(formData.phone.replace(/\s/g, ''))) {
-        showToast('Vui lòng nhập số điện thoại hợp lệ, ví dụ: 0987654321', 'error');
+      // Validate phone number against what GHN actually accepts. The old regex
+      // (1-16 digits, any prefix) let 9-digit numbers and bogus prefixes like
+      // 012… through; GHN then rejected the whole shipping order with
+      // `master_data_validate_phone` and the order silently shipped nowhere.
+      if (!isValidVnPhone(formData.phone)) {
+        showToast(PHONE_ERROR_MESSAGE, 'error');
         return;
       }
+      // Send the normalized form ("+84 912 345 678" -> "0912345678") so what we
+      // store, what GHN gets and what the customer sees all agree.
+      const phoneForOrder = normalizeVnPhone(formData.phone);
 
       // Validate cart items
       if (!cartItems || cartItems.length === 0) {
@@ -346,7 +359,7 @@ export default function CheckoutPage() {
         orderData.shipping_full_name = `${formData.firstName} ${formData.lastName}`.trim();
 
         // ALWAYS include these fields for GHN integration, regardless of address selection
-        orderData.shipping_phone_number = formData.phone.trim();
+        orderData.shipping_phone_number = phoneForOrder;
         orderData.shipping_address_line1 = formData.address.trim();
         orderData.shipping_address_line2 = formData.addressLine2?.trim() || null;
         orderData.shipping_city = completeAddress;
@@ -374,7 +387,7 @@ export default function CheckoutPage() {
         } else if (useNewAddress) {
           // Provide new address data with GHN location
           orderData.shipping_address = {
-            phone_number: formData.phone.trim(),
+            phone_number: phoneForOrder,
             address_line1: formData.address.trim(),
             address_line2: formData.addressLine2?.trim() || null,
             city: completeAddress,
@@ -397,7 +410,7 @@ export default function CheckoutPage() {
       } else {
         // Guest checkout - provide shipping details directly with GHN location
         orderData.guest_email = formData.email.trim().toLowerCase();
-        orderData.shipping_phone_number = formData.phone.trim();
+        orderData.shipping_phone_number = phoneForOrder;
         orderData.shipping_address_line1 = formData.address.trim();
         orderData.shipping_address_line2 = formData.addressLine2?.trim() || null;
         orderData.shipping_city = completeAddress;
@@ -501,10 +514,10 @@ export default function CheckoutPage() {
         const orderId = result.order_id || result.id;
 
         // Auto-save phone number for authenticated users
-        if (isAuthenticated && formData.phone && formData.phone.trim()) {
+        if (isAuthenticated && phoneForOrder) {
           try {
             const { updateUserPhone } = await import('../../../service/api');
-            await updateUserPhone(formData.phone.trim());
+            await updateUserPhone(phoneForOrder);
             console.log('Phone number auto-saved to user profile');
           } catch (phoneError) {
             // Don't fail the order if phone save fails

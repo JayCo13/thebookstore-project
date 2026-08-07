@@ -178,9 +178,38 @@ export interface GhnOrderInput {
   items: GhnLineItem[]; hasFreeShip: boolean;
 }
 
+// GHN validates the recipient phone server-side (`master_data_validate_phone`)
+// and 400s the whole shipping order when it doesn't like it. Accepted: mobile
+// `0[35789]` + 8 digits, or landline `02` + 9 digits. Orders placed before the
+// checkout form enforced this — and any caller that isn't the checkout form —
+// can still carry "+84 912 345 678" style input, so coerce to the local 0 form
+// here rather than handing GHN something it will reject over formatting alone.
+function normalizeVnPhone(raw: string): string {
+  let digits = String(raw ?? "").replace(/\D+/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("840")) digits = digits.slice(2);
+  else if (digits.startsWith("84")) digits = "0" + digits.slice(2);
+  return digits;
+}
+
+function isValidVnPhone(p: string): boolean {
+  return /^0[35789]\d{8}$/.test(p) || /^02\d{9}$/.test(p);
+}
+
 // Returns the GHN order_code, or null on failure. Caller persists it.
 export async function submitGhnOrder(input: GhnOrderInput): Promise<string | null> {
   if (!ghnConfigured()) { console.error("GHN not configured"); return null; }
+
+  const toPhone = normalizeVnPhone(input.toPhone);
+  if (!isValidVnPhone(toPhone)) {
+    // Still attempt the call (GHN is the authority on what it accepts), but say
+    // so loudly — this is the single most common reason an order never gets a
+    // waybill, and it used to be indistinguishable from any other failure.
+    console.error(
+      `GHN: recipient phone "${input.toPhone}" is not a valid VN number ` +
+      `(expected 0[35789]xxxxxxxx or 02xxxxxxxxx); GHN will likely reject this order`,
+    );
+  }
 
   // payment_type_id: free-ship or prepaid (cod 0) → 1 (shop pays); COD → 2.
   const paymentTypeId = input.hasFreeShip ? 1 : (input.codAmount > 0 ? 2 : 1);
@@ -210,7 +239,7 @@ export async function submitGhnOrder(input: GhnOrderInput): Promise<string | nul
     from_district_name: "Quận 12",
     from_province_name: "HCM",
     to_name: input.toName,
-    to_phone: input.toPhone,
+    to_phone: toPhone,
     to_address: input.toAddress,
     to_ward_code: input.toWardCode,
     to_district_id: input.toDistrictId,

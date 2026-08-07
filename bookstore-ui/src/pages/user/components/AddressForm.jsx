@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { isValidVnPhone, PHONE_ERROR_MESSAGE } from '../../../utils/phone';
 
 export default function AddressForm({
   address = null,
@@ -50,6 +51,9 @@ export default function AddressForm({
 
     if (!formData.phone_number.trim()) {
       newErrors.phone_number = 'Vui lòng nhập số điện thoại';
+    } else if (!isValidVnPhone(formData.phone_number)) {
+      // GHN rejects the shipping order outright on a malformed number.
+      newErrors.phone_number = PHONE_ERROR_MESSAGE;
     }
 
     if (!formData.address_line_1.trim()) {

@@ -10,6 +10,7 @@ import {
   updateUserProfile
 } from '../../../service/api';
 import AddressForm from '../components/AddressForm';
+import { normalizeVnPhone, isValidVnPhone, PHONE_ERROR_MESSAGE } from '../../../utils/phone';
 
 export default function ProfilePage() {
   const { user, isAuthenticated, refreshUser } = useAuth();
@@ -127,13 +128,22 @@ export default function ProfilePage() {
   };
 
   const handleSubmitAddress = async (formData) => {
+    // A saved address is what checkout sends to GHN when the customer picks it
+    // (create-order reads addresses.phone_number, not the checkout form), so a
+    // bad number here silently kills the waybill later. Block it at the source.
+    if (!isValidVnPhone(formData.phone_number)) {
+      showToast(PHONE_ERROR_MESSAGE, 'error');
+      return;
+    }
+    const payload = { ...formData, phone_number: normalizeVnPhone(formData.phone_number) };
+
     try {
       setSavingAddress(true);
       if (editingAddress) {
-        await updateAddress(editingAddress.id, formData);
+        await updateAddress(editingAddress.id, payload);
         showToast('Đã cập nhật địa chỉ', 'success');
       } else {
-        await createAddress(formData);
+        await createAddress(payload);
         showToast('Đã thêm địa chỉ mới', 'success');
       }
       setShowAddressModal(false);
