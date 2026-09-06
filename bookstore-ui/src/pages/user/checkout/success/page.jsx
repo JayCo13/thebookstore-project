@@ -1,28 +1,37 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { getOrder, createPayOSLink } from '../../../../service/api';
+import { getOrder, getOrderByPayosCode, createPayOSLink } from '../../../../service/api';
+import { useCart } from '../../../../hooks/useCart';
 import { formatPrice } from '../../../../utils/currency';
 
 export default function CheckoutSuccessPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, isAuthenticated } = useAuth();
+  const { clearCart } = useCart();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isNewAccount, setIsNewAccount] = useState(false);
 
-  // The PayOS return URL sends `orderCode` (which equals our order_id) plus
-  // `status` and `cancel` flags. Native success redirects from our own
-  // checkout form use `orderId`. Accept either so a single success page works.
-  const orderId = searchParams.get('orderId') || searchParams.get('orderCode');
+  // Two ways to land here:
+  //   `orderId`   — our own redirect after a COD order, which already exists.
+  //   `orderCode` — PayOS's return URL. This is the checkout code, NOT an order
+  //                 id: for a PayOS checkout the order is created by the webhook
+  //                 when payment confirms, so it may not exist yet (or ever, if
+  //                 the customer walked away from the payment page).
+  const orderIdParam = searchParams.get('orderId');
+  const payosCode = searchParams.get('orderCode');
   const payosStatus = searchParams.get('status');
   const payosCancelled = searchParams.get('cancel') === 'true';
+  const paymentAbandoned = payosCancelled || payosStatus === 'CANCELLED';
 
   useEffect(() => {
+    let abandonedEffect = false;
+
     const loadOrderDetails = async () => {
-      if (!orderId) {
+      if (!orderIdParam && !payosCode) {
         setError('No order ID provided');
         setLoading(false);
         return;
@@ -36,73 +45,52 @@ export default function CheckoutSuccessPage() {
       }
 
       try {
-        const orderData = await getOrder(orderId);
-        console.groupCollapsed('[Checkout Success] Loaded order');
-        console.log('order_id:', orderData?.order_id || orderData?.id);
-        console.log('ghn_order_code:', orderData?.ghn_order_code || '(none)');
-        console.log('status:', orderData?.status);
-        if (orderData?.ghn_order_code) {
-          console.log('Zalo ZNS: backend attempted send after GHN creation.');
-          const normalizePhone = (phone) => {
-            if (!phone) return null;
-            const raw = String(phone).replace(/\D+/g, '');
-            if (!raw) return null;
-            if (raw.startsWith('0')) return '84' + raw.slice(1);
-            if (raw.startsWith('84')) return raw;
-            if (raw.length >= 9) return '84' + raw;
-            return raw;
-          };
-          const phoneNormalized = normalizePhone(orderData?.shipping_phone_number);
-          const totalVnd = Number(orderData?.total_amount || 0);
-          const shippingVnd = Number(orderData?.shipping_fee || 0);
-          const totalNumber = totalVnd + shippingVnd;
-          const parts = [
-            orderData?.shipping_address_line1,
-            orderData?.ghn_ward_name,
-            orderData?.ghn_district_name,
-            orderData?.ghn_province_name,
-          ].filter(Boolean);
-          const addressJoined = parts.join(', ');
-          const template_data = {
-            order_code: orderData?.ghn_order_code,
-            total: totalNumber,
-            address: addressJoined || '',
-            deli_code: orderData?.ghn_order_code,
-            customer_name: orderData?.shipping_full_name || orderData?.customer_name || '',
-            payment_method: String(orderData?.payment_method || '').toUpperCase(),
-            tracking_id: '(generated server-side)',
-            items: (() => {
-              const arr = Array.isArray(orderData?.order_items) ? orderData.order_items : [];
-              const parts2 = arr.map(it => {
-                const t = it?.book?.title || it?.stationery?.title || '';
-                const q = Number(it?.quantity || 0);
-                return t && q > 0 ? `${t} x${q}` : null;
-              }).filter(Boolean);
-              let s = parts2.join(', ');
-              if (s.length > 200) s = s.slice(0, 197) + '...';
-              return s;
-            })(),
-          };
-          console.groupCollapsed('[Checkout Success] ZNS payload preview');
-          console.log('phone:', phoneNormalized);
-          console.log('template_id:', '(server configured)');
-          console.log('template_data:', template_data);
-          console.groupEnd();
+        let orderData = null;
+
+        if (orderIdParam) {
+          orderData = await getOrder(orderIdParam);
+        } else if (!paymentAbandoned) {
+          // Paid: the webhook is creating the order right about now, and PayOS
+          // redirects the browser back at the same time. Poll for a bit rather
+          // than telling a paying customer their order does not exist.
+          for (let attempt = 0; attempt < 12 && !abandonedEffect; attempt++) {
+            orderData = await getOrderByPayosCode(payosCode);
+            if (orderData) break;
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
         } else {
-          console.log('Zalo ZNS: GHN code missing; notification likely not sent.');
+          // Cancelled payment: nothing was created, and nothing will be.
+          orderData = await getOrderByPayosCode(payosCode);
         }
-        console.groupEnd();
-        setOrder(orderData);
+
+        if (abandonedEffect) return;
+
+        if (orderData) {
+          console.log('[Checkout Success] order', orderData.order_id,
+            'payment:', orderData.payment_status, 'GHN:', orderData.ghn_order_code || '(none)');
+          setOrder(orderData);
+          // The basket is only spent once an order actually exists for it — an
+          // abandoned PayOS payment leaves the cart intact on purpose.
+          if (String(orderData.payment_status || '').toLowerCase() === 'paid'
+              || String(orderData.payment_method || '').toLowerCase() !== 'payos') {
+            clearCart();
+          }
+        } else if (!paymentAbandoned) {
+          setError('Chưa nhận được xác nhận thanh toán từ PayOS. Nếu bạn đã thanh toán, '
+            + 'đơn hàng sẽ xuất hiện trong ít phút — vui lòng tải lại trang.');
+        }
       } catch (err) {
         console.error('Failed to load order details:', err);
-        setError('Failed to load order details');
+        if (!abandonedEffect) setError('Failed to load order details');
       } finally {
-        setLoading(false);
+        if (!abandonedEffect) setLoading(false);
       }
     };
 
     loadOrderDetails();
-  }, [orderId]);
+    return () => { abandonedEffect = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderIdParam, payosCode, paymentAbandoned]);
 
 
 
@@ -116,12 +104,60 @@ export default function CheckoutSuccessPage() {
     });
   };
 
+  // Re-open PayOS. With an order in hand we ask by order id; with only a parked
+  // checkout (payment cancelled before it ever became an order) we ask by its
+  // code, and payos-create-link hands back the same link it issued before.
+  const retryPayment = async () => {
+    try {
+      const resp = await createPayOSLink(
+        order ? (order.order_id || order.id) : { payos_order_code: Number(payosCode) },
+      );
+      if (resp?.checkout_url) window.location.href = resp.checkout_url;
+    } catch (e) {
+      console.error('Re-create PayOS link failed:', e);
+    }
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 pt-28 pb-16">
         <div className="max-w-2xl mx-auto text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#008080] mx-auto mb-4"></div>
           <p className="text-gray-600">Đang tải thông tin đơn hàng...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!order && payosCode) {
+    return (
+      <div className="container mx-auto px-4 pt-28 pb-16">
+        <div className="max-w-2xl mx-auto text-center">
+          <div className="w-16 h-16 mx-auto mb-6 bg-amber-100 rounded-full flex items-center justify-center">
+            <svg className="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Chưa hoàn tất thanh toán</h1>
+          <p className="text-gray-600 mb-8">
+            {paymentAbandoned
+              ? 'Thanh toán đã bị huỷ nên đơn hàng chưa được tạo. Giỏ hàng của bạn vẫn còn nguyên.'
+              : (error || 'Chúng tôi chưa nhận được xác nhận thanh toán từ PayOS.')}
+          </p>
+          <div className="flex flex-wrap gap-3 justify-center">
+            <button
+              onClick={retryPayment}
+              className="bg-[#008080] text-white px-6 py-3 rounded-md hover:bg-[#006666] transition-colors font-medium"
+            >
+              Thanh toán lại
+            </button>
+            <button
+              onClick={() => navigate('/cart')}
+              className="border border-gray-300 text-gray-700 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors"
+            >
+              Quay lại giỏ hàng
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -158,15 +194,6 @@ export default function CheckoutSuccessPage() {
   const isCancelled = payosCancelled || payosStatus === 'CANCELLED';
   const pendingPayment = isPayos && !isPaid; // unpaid PayOS (cancelled or just not paid yet)
 
-  const handlePayAgain = async () => {
-    try {
-      const resp = await createPayOSLink(order.order_id || order.id);
-      if (resp?.checkout_url) window.location.href = resp.checkout_url;
-    } catch (e) {
-      console.error('Re-create PayOS link failed:', e);
-    }
-  };
-
   const orderItems = order.order_items || order.items || [];
   const grandTotal = (order.total_amount || 0) + (order.shipping_fee || 0);
 
@@ -189,7 +216,7 @@ export default function CheckoutSuccessPage() {
                   : 'Đơn hàng của bạn đã được tạo nhưng chưa nhận được xác nhận thanh toán từ PayOS.'}
               </p>
               <button
-                onClick={handlePayAgain}
+                onClick={retryPayment}
                 className="mt-4 bg-[#008080] text-white px-6 py-3 rounded-md hover:bg-[#006666] transition-colors font-medium"
               >
                 Thanh toán ngay

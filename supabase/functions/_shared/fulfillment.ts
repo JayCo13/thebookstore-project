@@ -19,11 +19,19 @@ interface FulfillOpts {
   forceCodZero?: boolean;
 }
 
+export interface FulfillResult {
+  /** The GHN waybill — null when the shipping order still could not be created. */
+  ghnCode: string | null;
+  ghnError: string | null;
+  /** True when a later attempt could still succeed (transient GHN/network failure). */
+  retryable: boolean;
+}
+
 export async function fulfillOrder(
   supabase: SupabaseClient,
   orderId: number,
   opts: FulfillOpts = {},
-): Promise<void> {
+): Promise<FulfillResult> {
   const { data: order } = await supabase
     .from("orders").select("*").eq("order_id", orderId).single();
   if (!order) throw new Error(`Order ${orderId} not found`);
@@ -73,6 +81,8 @@ export async function fulfillOrder(
   // to leave no trace anywhere except the function logs, so orders sat without
   // a waybill indefinitely and nobody could tell why (or even that they had).
   let ghnCode = order.ghn_order_code as string | null;
+  let ghnError: string | null = null;
+  let retryable = false;
   if (!ghnCode) {
     const missing = [
       !order.ghn_ward_code && "ghn_ward_code",
@@ -82,6 +92,7 @@ export async function fulfillOrder(
 
     if (missing.length) {
       const reason = `Thiếu thông tin giao hàng: ${missing.join(", ")}`;
+      ghnError = reason;  // no retry will conjure up an address
       console.error(`Order ${orderId}: ${reason}; skipping GHN submit`);
       await supabase.from("orders")
         .update({ ghn_error: reason, ghn_last_attempt_at: new Date().toISOString() })
@@ -100,6 +111,8 @@ export async function fulfillOrder(
         hasFreeShip,
       });
       ghnCode = result.orderCode;
+      ghnError = result.error;
+      retryable = result.retryable;
 
       await supabase.from("orders").update({
         ...(ghnCode ? { ghn_order_code: ghnCode } : {}),
@@ -151,4 +164,8 @@ export async function fulfillOrder(
     sendOrderConfirmationEmail(emailData),
     sendNewOrderAdminEmail(emailData),
   ]);
+
+  // Callers that can retry (the PayOS webhook) need to know whether the waybill
+  // actually got created, and whether trying again is worth anything.
+  return { ghnCode, ghnError, retryable };
 }

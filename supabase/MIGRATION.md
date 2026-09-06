@@ -78,9 +78,9 @@ modules under `functions/_shared/`: `cors`, `supabase`, `ghn`, `payos`, `email`,
 
 | Function | Replaces | Notes |
 |---|---|---|
-| `create-order` | `POST /orders/` | guest+user orders, COD→GHN+email inline, PayOS→Unpaid. ✅ done |
-| `payos-create-link` | `POST /payments/payos/create-link` | calls PayOS, stores checkout url |
-| `payos-webhook` | `POST /payments/payos/webhook` | HMAC verify → mark Paid → fulfill (GHN cod=0 + email). ✅ done |
+| `create-order` | `POST /orders/` | guest+user orders, COD→insert+GHN+email inline, PayOS→park in `pending_orders` (no order row). ✅ done |
+| `payos-create-link` | `POST /payments/payos/create-link` | calls PayOS, stores checkout url; takes `payos_order_code` (parked checkout) or `order_id` (legacy unpaid order) |
+| `payos-webhook` | `POST /payments/payos/webhook` | HMAC verify → create the order from `pending_orders` (or mark an existing one Paid) → fulfill (GHN cod=0 + email). Must be deployed with `verify_jwt = false`. ✅ done |
 | `ghn-sync-status` | `POST /orders/sync-ghn-status`, shipping-status GETs | GHN status polling |
 | `chat` | `POST /chat/` | **hardest** — ChromaDB + sentence-transformers + Groq. See below. |
 | `moderate-review` | `POST /moderation/review` | Groq call, stateless. ✅ done |

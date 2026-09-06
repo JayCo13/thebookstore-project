@@ -510,43 +510,54 @@ export default function CheckoutPage() {
       }
       console.groupEnd();
 
+      // Auto-save phone number for authenticated users
+      if (isAuthenticated && phoneForOrder) {
+        try {
+          const { updateUserPhone } = await import('../../../service/api');
+          await updateUserPhone(phoneForOrder);
+          console.log('Phone number auto-saved to user profile');
+        } catch (phoneError) {
+          // Don't fail the order if phone save fails
+          console.warn('Failed to save phone number to profile:', phoneError);
+        }
+      }
+
+      // Send the customer to PayOS. `ref` is a parked checkout code in the
+      // normal flow; on an older backend that still creates the order upfront
+      // it is that order's id, and payos-create-link accepts both.
+      const goToPayOS = async (ref) => {
+        try {
+          const linkResp = await createPayOSLink(ref);
+          const checkoutUrl = linkResp?.checkout_url;
+          if (!checkoutUrl) {
+            throw new Error('PayOS không trả về link thanh toán');
+          }
+          showToast('Đang chuyển đến cổng thanh toán PayOS...', 'success');
+          window.location.href = checkoutUrl;
+        } catch (payosErr) {
+          console.error('PayOS link creation failed:', payosErr);
+          showToast(
+            `Không thể tạo link thanh toán PayOS. Vui lòng thử lại hoặc chọn COD. (${payosErr?.message || 'unknown'})`,
+            'error'
+          );
+        }
+      };
+
+      // PayOS: no order exists yet. The backend parked the priced basket and
+      // gave us its code; the order is created by the payment webhook. The cart
+      // is deliberately NOT cleared here — walk away from the payment page and
+      // you still have your basket, because nothing was ordered.
+      if (result?.pending && result?.payos_order_code) {
+        await goToPayOS({ payos_order_code: result.payos_order_code });
+        return;
+      }
+
       if (result && (result.order_id || result.id)) {
         const orderId = result.order_id || result.id;
 
-        // Auto-save phone number for authenticated users
-        if (isAuthenticated && phoneForOrder) {
-          try {
-            const { updateUserPhone } = await import('../../../service/api');
-            await updateUserPhone(phoneForOrder);
-            console.log('Phone number auto-saved to user profile');
-          } catch (phoneError) {
-            // Don't fail the order if phone save fails
-            console.warn('Failed to save phone number to profile:', phoneError);
-          }
-        }
-
-        // PayOS branch: order is created but unpaid. Generate a hosted payment
-        // link and redirect the browser. GHN submission + ZNS are deferred on
-        // the backend until the PayOS webhook confirms payment.
         if (formData.paymentMethod === 'payos') {
-          try {
-            const linkResp = await createPayOSLink(orderId);
-            const checkoutUrl = linkResp?.checkout_url;
-            if (!checkoutUrl) {
-              throw new Error('PayOS không trả về link thanh toán');
-            }
-            clearCart();
-            showToast('Đang chuyển đến cổng thanh toán PayOS...', 'success');
-            window.location.href = checkoutUrl;
-            return;
-          } catch (payosErr) {
-            console.error('PayOS link creation failed:', payosErr);
-            showToast(
-              `Không thể tạo link thanh toán PayOS. Vui lòng thử lại hoặc chọn COD. (${payosErr?.message || 'unknown'})`,
-              'error'
-            );
-            return;
-          }
+          await goToPayOS(orderId);
+          return;
         }
 
         showToast('Đặt hàng thành công!', 'success');

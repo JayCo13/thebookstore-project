@@ -67,3 +67,13 @@ policy = "per_worker"
 
 [analytics]
 enabled = false
+
+# PayOS calls this server-to-server with no Supabase session, so the platform's
+# JWT gate would reject every webhook with 401 before the function even runs.
+# The function authenticates the caller itself, by verifying PayOS's HMAC-SHA256
+# signature over the `data` block and answering 400 on a mismatch.
+#
+# Declared here rather than relying on `--no-verify-jwt` at deploy time, which
+# only applies to that one deploy and silently reverts on the next one.
+[functions.payos-webhook]
+verify_jwt = false
