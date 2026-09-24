@@ -14,7 +14,7 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [cancellingOrder, setCancellingOrder] = useState(null);
-  const [ghnStatuses, setGhnStatuses] = useState({});
+  const [carrierStatuses, setCarrierStatuses] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export default function OrdersPage() {
       setOrders(response || []);
 
       if (response && response.length > 0) {
-        fetchGHNStatuses(response);
+        fetchCarrierStatuses(response);
       }
     } catch (error) {
       console.error('[Orders Page] Error loading orders:', error);
@@ -43,9 +43,9 @@ export default function OrdersPage() {
     }
   };
 
-  const fetchGHNStatuses = async (ordersList) => {
+  const fetchCarrierStatuses = async (ordersList) => {
     const statusPromises = ordersList
-      .filter(order => order.ghn_order_code)
+      .filter(order => order.tracking_code)
       .map(async (order) => {
         try {
           const { getMyOrderShippingStatus } = await import('../../../service/api');
@@ -61,7 +61,7 @@ export default function OrdersPage() {
     results.forEach(({ orderId, status }) => {
       if (status) statusMap[orderId] = status;
     });
-    setGhnStatuses(statusMap);
+    setCarrierStatuses(statusMap);
   };
 
   const handleCancelOrder = async (orderId) => {
@@ -138,17 +138,28 @@ export default function OrdersPage() {
     });
   };
 
-  const getGHNTrackingUrl = (ghnOrderCode) => `https://donhang.ghn.vn/?order_code=${ghnOrderCode}`;
+  // GoShip supplies the tracking page for whichever carrier took the parcel, so
+  // there is no URL pattern to hardcode any more — which is what both the GHN
+  // and the Viettel Post integrations had to do. Orders predating GoShip fall
+  // back to GHN's page, which is where they are genuinely tracked.
+  const getTrackingUrl = (order) =>
+    order.tracking_url ||
+    (order.tracking_code
+      ? `https://donhang.ghn.vn/?order_code=${encodeURIComponent(order.tracking_code)}`
+      : null);
+
+  const getCarrierName = (order) =>
+    order.shipping_service_code || order.carrier || 'đơn vị vận chuyển';
 
   const getDisplayStatus = (order) => {
-    const ghnStatus = ghnStatuses[order.order_id || order.id];
-    if (ghnStatus?.status) return translateStatus(ghnStatus.status);
+    const carrierStatus = carrierStatuses[order.order_id || order.id];
+    if (carrierStatus?.status) return translateStatus(carrierStatus.status);
     return translateStatus(order.status || 'pending');
   };
 
   const getRawStatus = (order) => {
-    const ghnStatus = ghnStatuses[order.order_id || order.id];
-    return ghnStatus?.status || order.status || 'pending';
+    const carrierStatus = carrierStatuses[order.order_id || order.id];
+    return carrierStatus?.status || order.status || 'pending';
   };
 
   const getItemTitle = (item) => item.book?.title || item.stationery?.title || item.title || 'Sản phẩm';
@@ -337,9 +348,9 @@ export default function OrdersPage() {
                           {isExpanded ? 'Ẩn chi tiết' : 'Xem chi tiết'}
                         </button>
 
-                        {order.ghn_order_code && (
+                        {order.tracking_code && getTrackingUrl(order) && (
                           <a
-                            href={getGHNTrackingUrl(order.ghn_order_code)}
+                            href={getTrackingUrl(order)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-gradient-to-r from-teal-600 to-emerald-600 text-white rounded-lg shadow-md hover:shadow-lg transition-all"
@@ -347,7 +358,7 @@ export default function OrdersPage() {
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                             </svg>
-                            Theo dõi GHN
+                            Theo dõi {getCarrierName(order)}
                           </a>
                         )}
 
@@ -426,7 +437,7 @@ export default function OrdersPage() {
                               {order.shipping_full_name && <p className="font-medium text-gray-900">{order.shipping_full_name}</p>}
                               {order.shipping_phone_number && <p>📞 {order.shipping_phone_number}</p>}
                               {order.shipping_address_line1 && <p>{order.shipping_address_line1}</p>}
-                              {order.ghn_ward_name && <p>{order.ghn_ward_name}, {order.ghn_district_name}, {order.ghn_province_name}</p>}
+                              {order.ship_ward_name && <p>{order.ship_ward_name}, {order.ship_district_name}, {order.ship_province_name}</p>}
                             </div>
                           </div>
                         )}

@@ -3,12 +3,15 @@ import { Button, Input } from '../../components';
 import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import './OrdersList.css';
-import { getAllOrders, getAllOrdersAdmin, updateOrderStatus, syncGhnStatus } from '../../service';
+import { getAllOrders, getAllOrdersAdmin, updateOrderStatus, syncShippingStatus } from '../../service';
 import { getBookCoverUrl } from '../../service/api';
 import { formatPrice } from '../../utils/currency';
 
-// GHN Status Vietnamese translations
-const GHN_STATUS_MAP = {
+// Carrier status -> Vietnamese label. The keys are the normalised statuses the
+// backend writes to orders.status; they were GHN's vocabulary originally and
+// every carrier since reuses them, so orders from all of them land in this
+// table regardless of who actually carried the parcel.
+const SHIPPING_STATUS_MAP = {
   'ready_to_pick': { label: 'Chờ lấy hàng', class: 'pending' },
   'picking': { label: 'Đang lấy hàng', class: 'pending' },
   'cancel': { label: 'Đã hủy', class: 'cancelled' },
@@ -43,7 +46,7 @@ const GHN_STATUS_MAP = {
 // Get translated status info
 const getStatusInfo = (status) => {
   const key = String(status || 'pending').toLowerCase();
-  return GHN_STATUS_MAP[key] || { label: status || 'Không xác định', class: 'pending' };
+  return SHIPPING_STATUS_MAP[key] || { label: status || 'Không xác định', class: 'pending' };
 };
 
 // Map API order object to UI-friendly shape with safe fallbacks
@@ -89,10 +92,10 @@ const mapOrderToRow = (order) => {
   const totalRaw = Number(order?.total_amount ?? order?.total ?? 0) || (subtotal + shipping + tax);
   const total = formatPrice(totalRaw);
   const status = order?.status || 'pending';
-  const ghnCode = order?.ghn_order_code || null;
-  const ghnError = order?.ghn_error || null;
+  const trackingCode = order?.tracking_code || null;
+  const shippingError = order?.shipping_error || null;
   const idNum = parseInt(String(id).replace(/[^0-9]/g, ''), 10) || 0;
-  return { id, idNum, date, dateKey, dateMs, customer, address, paymentMethod, total, status, ghnCode, ghnError, raw: order };
+  return { id, idNum, date, dateKey, dateMs, customer, address, paymentMethod, total, status, trackingCode, shippingError, raw: order };
 };
 
 
@@ -130,8 +133,8 @@ const OrdersList = () => {
         const res = await getAllOrders();
         const list = Array.isArray(res) ? res : (res?.orders || res?.data || []);
         const rows = list.map(mapOrderToRow);
-        // NOTE: GHN status is stored in order.status by the backend
-        // Removed individual GHN API calls to improve loading speed
+        // NOTE: the carrier status is stored in order.status by the backend
+        // (webhook or batch sync) — no per-order API call here, it was slow.
         setOrders(rows);
       } catch (err) {
         console.warn('Primary admin orders endpoint failed, trying alternative...', err);
@@ -245,18 +248,18 @@ const OrdersList = () => {
     }
   };
 
-  const handleSyncGhn = async () => {
+  const handleSyncShipping = async () => {
     try {
       setSyncing(true);
-      const result = await syncGhnStatus();
-      alert(result?.message || 'Đã đồng bộ trạng thái GHN');
+      const result = await syncShippingStatus();
+      alert(result?.message || 'Đã đồng bộ trạng thái vận chuyển');
       // Refresh orders after sync
       const res = await getAllOrders();
       const list = Array.isArray(res) ? res : (res?.orders || res?.data || []);
       setOrders(list.map(mapOrderToRow));
     } catch (e) {
-      console.error('Sync GHN failed', e);
-      alert('Không thể đồng bộ trạng thái GHN');
+      console.error('Sync shipping status failed', e);
+      alert('Không thể đồng bộ trạng thái vận chuyển');
     } finally {
       setSyncing(false);
     }
@@ -270,8 +273,8 @@ const OrdersList = () => {
       <div className="orders-toolbar">
         <Input className="search" placeholder="Tìm kiếm theo mã đơn hàng hoặc khách hàng" value={query} onChange={(e) => setQuery(e.target.value)} />
         <div className="actions">
-          <Button variant="outline" onClick={handleSyncGhn} disabled={syncing}>
-            {syncing ? 'Đang đồng bộ...' : 'Sync GHN'}
+          <Button variant="outline" onClick={handleSyncShipping} disabled={syncing}>
+            {syncing ? 'Đang đồng bộ...' : 'Đồng bộ vận chuyển'}
           </Button>
           <Button variant="outline" onClick={() => navigate('/admin/orders/archive')}>Xem Lưu trữ</Button>
           <Button variant="primary">Xuất file Excel</Button>
@@ -337,12 +340,12 @@ const OrdersList = () => {
                 <div className="col col-check"><input type="checkbox" /></div>
                 <div className="col col-id">
                   <button className="link" onClick={() => navigate(`/admin/orders/${order.id}`)}>
-                    {order.ghnCode || `#${order.id}`}
+                    {order.trackingCode || `#${order.id}`}
                   </button>
-                  {/* No waybill means GHN never accepted this order — it used to
-                      look identical to a normal one here. */}
-                  {!order.ghnCode && (
-                    <span className="no-waybill" title={order.ghnError || 'Chưa gửi sang GHN'}>
+                  {/* No waybill means the carrier never accepted this order — it
+                      used to look identical to a normal one here. */}
+                  {!order.trackingCode && (
+                    <span className="no-waybill" title={order.shippingError || 'Chưa tạo được vận đơn'}>
                       Chưa có vận đơn
                     </span>
                   )}

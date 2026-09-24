@@ -11,7 +11,7 @@ const OrderDetails = () => {
   // Route is defined as "/admin/orders/:id"; use that param directly
   const orderId = params.id || window.location.pathname.split('/').pop();
   const [order, setOrder] = useState(null);
-  const [ghnStatus, setGhnStatus] = useState(null);
+  const [carrierStatus, setCarrierStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -24,21 +24,21 @@ const OrderDetails = () => {
         const data = await getOrder(orderId);
         if (!mounted) return;
         setOrder(data);
-        // Fetch GHN status if code exists
+        // Fetch the live carrier status if there is a waybill to ask about
         try {
-          const code = data?.ghn_order_code;
+          const code = data?.tracking_code;
           if (code) {
             const s = await getOrderShippingStatus(orderId);
             const status = s?.status || s?.data?.status || null;
-            console.groupCollapsed(`[Admin OrderDetails] GHN status for order #${orderId}`);
-            console.log('ghn_order_code:', code);
+            console.groupCollapsed(`[Admin OrderDetails] ${data?.carrier ?? 'Carrier'} status for order #${orderId}`);
+            console.log('tracking_code:', code);
             console.log('status response:', s);
             console.log('applied status:', status);
             console.groupEnd();
-            if (mounted) setGhnStatus(status);
+            if (mounted) setCarrierStatus(status);
           } else {
-            console.info(`[Admin OrderDetails] No GHN code for order #${orderId} — skipping status fetch`);
-            if (mounted) setGhnStatus(null);
+            console.info(`[Admin OrderDetails] No waybill for order #${orderId} — skipping status fetch`);
+            if (mounted) setCarrierStatus(null);
           }
         } catch {}
       } catch (e) {
@@ -77,7 +77,7 @@ const OrderDetails = () => {
 
   if (!order) return null;
 
-  const status = String((ghnStatus ?? order.status) || 'Pending');
+  const status = String((carrierStatus ?? order.status) || 'Pending');
   const createdAt = order.order_date;
   const formattedDate = createdAt ? new Date(createdAt).toLocaleString() : '—';
 

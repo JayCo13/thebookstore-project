@@ -1,10 +1,11 @@
 /**
- * Vietnamese phone helpers, aligned with what GHN's create-order API accepts.
+ * Vietnamese phone helpers, aligned with what the carrier's create-order API accepts.
  *
- * GHN validates the recipient phone server-side (`master_data_validate_phone`)
- * and rejects the whole shipping order with a 400 when it doesn't like the
- * number — which used to leave the order sitting in our DB with no waybill and
- * no visible error. Verified against GHN's preview endpoint:
+ * Carriers validate the recipient phone server-side and refuse the whole
+ * shipment when they don't like the number — which leaves the order sitting in
+ * our DB with no waybill and no visible error. The accepted shapes below were
+ * verified against GHN's preview endpoint; every Vietnamese carrier takes the
+ * same set, because they are simply the valid VN number formats.
  *
  *   0912345678   (mobile, 10 digits)      -> accepted
  *   0356789012 / 0812345678               -> accepted
@@ -20,7 +21,7 @@
  */
 
 /**
- * Strip formatting and coerce to the local `0…` form GHN expects.
+ * Strip formatting and coerce to the local `0…` form the carrier expects.
  * Handles "0912 345 678", "+84 912 345 678", "84912345678", "0912.345.678".
  * Returns '' when there's nothing usable.
  */
@@ -40,7 +41,7 @@ export function normalizeVnPhone(raw) {
 const MOBILE_RE = /^0[35789]\d{8}$/;   // 10 digits
 const LANDLINE_RE = /^02\d{9}$/;       // 11 digits
 
-/** True when GHN will accept the number as a recipient phone. */
+/** True when the carrier will accept the number as a recipient phone. */
 export function isValidVnPhone(raw) {
   const p = normalizeVnPhone(raw);
   return MOBILE_RE.test(p) || LANDLINE_RE.test(p);

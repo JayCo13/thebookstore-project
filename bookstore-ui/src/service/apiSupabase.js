@@ -7,8 +7,9 @@
  * Split (mirrors supabase/MIGRATION.md):
  *   • plain reads/writes  → supabase.from(...) under RLS
  *   • side-effecting flows → supabase.functions.invoke(...) (create-order,
- *     payos-create-link, ghn-sync-status, ghn-order-status, moderate-review,
- *     chat, admin-login, upload-media, import-books)
+ *     payos-create-link, goship-locations, goship-shipping-fee,
+ *     goship-sync-status, goship-order-status, moderate-review, chat,
+ *     admin-login, upload-media, import-books)
  *
  * Response shapes are flattened to match what the React pages expect from the
  * old FastAPI responses (e.g. book.authors / book.categories as flat arrays).
@@ -351,10 +352,15 @@ export async function cancelOrder(orderId) {
   // flow / future RPC. Here we just flip the status under RLS.
   return must(await supabase.from('orders').update({ status: 'cancelled' }).eq('order_id', orderId));
 }
-export const syncGhnStatus = () => invoke('ghn-sync-status', {});
-export const getMyOrderShippingStatus = (orderId) => invoke('ghn-order-status', { order_id: orderId });
+export const syncShippingStatus = () => invoke('goship-sync-status', {});
+export const getMyOrderShippingStatus = (orderId) => invoke('goship-order-status', { order_id: orderId });
 export const getOrderShippingStatus = getMyOrderShippingStatus;
-export const getGHNOrderStatus = getMyOrderShippingStatus;
+
+// Shipping lookups and quotes both go through edge functions because GoShip
+// requires a Bearer token on every endpoint — including the address book. That
+// token can also book shipments, so it must never reach the browser bundle.
+export const getShippingLocations = (params) => invoke('goship-locations', params);
+export const getShippingQuote = (params) => invoke('goship-shipping-fee', params);
 
 // ============================================================================
 // Payments
@@ -666,7 +672,7 @@ const apiService = {
   getBookBySlug, getBookCoverUrl, getBookReviews, getBooks, getBooksAuthors,
   getBooksByAuthor, getBooksByCategory, getBooksCategories, getCart, getCategories,
   getCategory, getCurrentUser, getDashboardAnalytics, getDiscountedBooks, getFeaturedBooks,
-  getFeaturedStationery, getGHNOrderStatus, getGoogleAuthUrl, getLatestStationery,
+  getFeaturedStationery, getGoogleAuthUrl, getLatestStationery,
   getMyOrderShippingStatus, getNotifications, getOrder, getOrderShippingStatus, getOrders,
   getPopularBooks, getSalesAnalytics, getSlideBooks, getSlideContent, getSlideContents,
   getSlideStationery, getStaticFileUrl, getStationery, getStationeryBySlug,
@@ -674,7 +680,8 @@ const apiService = {
   getUserById, getUserProfile, getVersion, getWishlist, handleGoogleCallback, healthCheck,
   initializeSystem, isNotificationDismissed, login, logout, moderateReview, refreshToken,
   register, removeFromCart, removeFromWishlist, resetPassword, searchBooks, sendChatMessage,
-  setDefaultAddress, syncGhnStatus, toggleNotification, updateAddress, updateAuthor,
+  setDefaultAddress, getShippingLocations, getShippingQuote, syncShippingStatus,
+  toggleNotification, updateAddress, updateAuthor,
   updateBook, updateCartItem, updateCategory, updateNotification, updateOrderStatus,
   updateReview, updateSlideContent, updateStationery, updateUser, updateUserPhone,
   updateUserProfile, updateUserStatus, uploadAudioSample, uploadBookCover, uploadBookImage,

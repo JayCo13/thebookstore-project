@@ -17,7 +17,7 @@ export default function AuthForm() {
       {/* Logo & Header */}
       <div className="px-6 pt-8 pb-4 text-center">
         <img
-          src="/assets/ghn.png"
+          src="/assets/logo.png"
           alt="Tâm Nguồn Book"
           className="h-16 mx-auto mb-4 object-contain"
         />

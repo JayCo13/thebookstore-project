@@ -128,7 +128,7 @@ export default function ProfilePage() {
   };
 
   const handleSubmitAddress = async (formData) => {
-    // A saved address is what checkout sends to GHN when the customer picks it
+    // A saved address is what checkout sends to the carrier when the customer picks it
     // (create-order reads addresses.phone_number, not the checkout form), so a
     // bad number here silently kills the waybill later. Block it at the source.
     if (!isValidVnPhone(formData.phone_number)) {

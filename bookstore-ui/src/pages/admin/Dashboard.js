@@ -7,8 +7,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Link2, CheckCircle, RefreshCw, X } from 'lucide-react';
 import './Dashboard.css';
 
-// GHN Status Vietnamese translations
-const GHN_STATUS_MAP = {
+// Carrier status -> Vietnamese label, same vocabulary as the orders list.
+const SHIPPING_STATUS_MAP = {
   'ready_to_pick': { label: 'Chờ lấy hàng', class: 'checking' },
   'picking': { label: 'Đang lấy hàng', class: 'checking' },
   'cancel': { label: 'Đã hủy', class: 'cancelled' },
@@ -41,7 +41,7 @@ const GHN_STATUS_MAP = {
 
 const getStatusInfo = (status) => {
   const key = String(status || 'pending').toLowerCase();
-  return GHN_STATUS_MAP[key] || { label: status || 'Không xác định', class: 'checking' };
+  return SHIPPING_STATUS_MAP[key] || { label: status || 'Không xác định', class: 'checking' };
 };
 
 const Dashboard = () => {
@@ -84,8 +84,8 @@ const Dashboard = () => {
         }
         let orders = Array.isArray(ordersRes) ? ordersRes : (ordersRes?.orders || ordersRes?.data || []);
 
-        // NOTE: GHN status is now stored in the order's status field by the backend
-        // Removed individual GHN API calls here to improve loading speed
+        // NOTE: the carrier status is stored in the order's status field by the
+        // backend (webhook or batch sync) — no per-order API call here.
 
         // Fetch total books count efficiently
         let booksRes = await getBooks({ page: 1, per_page: 1 });

@@ -49,7 +49,7 @@ export default function ShippingReturnsPage() {
                                 <ul className="list-disc list-inside space-y-1 text-gray-600 ml-4">
                                     <li>Giao Hàng Nhanh (GHN)</li>
                                     <li>Giao Hàng Tiết Kiệm (GHTK)</li>
-                                    <li>Viettel Post</li>
+                                    <li>Giao Hàng Tiết Kiệm (GHTK)</li>
                                     <li>J&T Express</li>
                                 </ul>
                             </div>

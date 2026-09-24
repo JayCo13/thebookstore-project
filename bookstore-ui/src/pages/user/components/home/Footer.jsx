@@ -141,12 +141,13 @@ export default function Footer() {
                                 className="h-12 md:h-14 lg:h-16 w-auto object-contain hover:grayscale-0 transition-all duration-300"
                             />
                         </div>
-                        <div className="flex items-center justify-center p-4 bg-white rounded-lg hover:shadow-md transition-shadow duration-300">
-                            <img
-                                src="/assets/ghn.png"
-                                alt="Giao Hàng Nhanh"
-                                className="h-12 md:h-14 lg:h-16 w-auto object-contain hover:grayscale-0 transition-all duration-300"
-                            />
+                        {/* Shipping is routed through GoShip, which picks among
+                            several carriers per order — so there is no single
+                            carrier logo to show here any more. Naming them is
+                            both more useful and more honest than one badge. */}
+                        <div className="flex flex-col items-center justify-center p-4 bg-white rounded-lg hover:shadow-md transition-shadow duration-300">
+                            <span className="text-xs text-gray-500">Giao hàng qua</span>
+                            <span className="text-sm font-semibold text-gray-700">GHN · GHTK · J&amp;T · Ninja Van</span>
                         </div>
                     </div>
                 </div>

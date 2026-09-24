@@ -52,7 +52,7 @@ export default function AddressForm({
     if (!formData.phone_number.trim()) {
       newErrors.phone_number = 'Vui lòng nhập số điện thoại';
     } else if (!isValidVnPhone(formData.phone_number)) {
-      // GHN rejects the shipping order outright on a malformed number.
+      // The carrier rejects the shipping order outright on a malformed number.
       newErrors.phone_number = PHONE_ERROR_MESSAGE;
     }
 

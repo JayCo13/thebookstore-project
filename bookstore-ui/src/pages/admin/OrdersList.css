@@ -156,7 +156,7 @@
   cursor: not-allowed;
 }
 
-/* Status badge styles for GHN statuses */
+/* Status badge styles for carrier statuses */
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -312,8 +312,9 @@
     display: none;
   }
 }
-/* Orders GHN never accepted. Without this they render as a plain "#12" and
-   look no different from an order that has a waybill. Hover shows ghn_error. */
+/* Orders the carrier never accepted. Without this they render as a plain "#12"
+   and look no different from an order that has a waybill. Hover shows
+   shipping_error. */
 .no-waybill {
   display: block;
   margin-top: 2px;

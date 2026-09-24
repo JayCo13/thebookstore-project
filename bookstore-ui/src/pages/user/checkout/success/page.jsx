@@ -67,7 +67,7 @@ export default function CheckoutSuccessPage() {
 
         if (orderData) {
           console.log('[Checkout Success] order', orderData.order_id,
-            'payment:', orderData.payment_status, 'GHN:', orderData.ghn_order_code || '(none)');
+            'payment:', orderData.payment_status, 'waybill:', orderData.tracking_code || '(none)');
           setOrder(orderData);
           // The basket is only spent once an order actually exists for it — an
           // abandoned PayOS payment leaves the cart intact on purpose.
@@ -313,7 +313,7 @@ export default function CheckoutSuccessPage() {
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <p className="font-medium text-gray-900">{order.shipping_full_name}</p>
                   <p className="text-gray-600">
-                    {[order.shipping_address_line1, order.ghn_ward_name, order.ghn_district_name, order.ghn_province_name]
+                    {[order.shipping_address_line1, order.ship_ward_name, order.ship_district_name, order.ship_province_name]
                       .filter(Boolean).join(', ')}
                   </p>
                   {order.shipping_phone_number && (

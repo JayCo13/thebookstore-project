@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../../hooks/useCart';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useToast } from '../../../contexts/ToastContext';
-import { useGHNLocation } from '../../../hooks/useGHNLocation';
+import { useGoshipLocation } from '../../../hooks/useGoshipLocation';
 import { MinusIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { Truck, PartyPopper, Banknote } from 'lucide-react';
 import {
@@ -16,7 +16,7 @@ import {
   createOrder,
   createPayOSLink
 } from '../../../service/api';
-import { formatShippingFee } from '../../../service/ghnService';
+import { formatShippingFee } from '../../../service/goshipService';
 import { formatPrice, parsePrice, formatPriceForInput } from '../../../utils/currency';
 import { normalizeVnPhone, isValidVnPhone, PHONE_ERROR_MESSAGE } from '../../../utils/phone';
 import SearchableSelect from '../../../components/SearchableSelect';
@@ -31,7 +31,7 @@ export default function CheckoutPage() {
   const { showToast } = useToast();
   const [isClient, setIsClient] = useState(false);
 
-  // GHN Location hook
+  // GoShip location hook
   const {
     provinces,
     districts,
@@ -53,7 +53,7 @@ export default function CheckoutPage() {
     getCompleteAddress,
     isLocationComplete,
     getLocationData
-  } = useGHNLocation();
+  } = useGoshipLocation();
   const [addresses, setAddresses] = useState([]);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
   const [useNewAddress, setUseNewAddress] = useState(false);
@@ -244,14 +244,14 @@ export default function CheckoutPage() {
         return;
       }
 
-      // Validate GHN location selection
+      // Validate location selection
       if (!isLocationComplete()) {
         showToast('Vui lòng chọn Tỉnh/Thành phố, Quận/Huyện, Xã/Phường cho địa chỉ giao hàng', 'error');
         return;
       }
 
-      // Catch a bad phone here, before the guest dialog — GHN rejects the
-      // shipping order over it and the customer would never find out.
+      // Catch a bad phone here, before the guest dialog — the carrier rejects
+      // the shipping order over it and the customer would never find out.
       if (!isValidVnPhone(formData.phone)) {
         showToast(PHONE_ERROR_MESSAGE, 'error');
         return;
@@ -279,13 +279,13 @@ export default function CheckoutPage() {
         return;
       }
 
-      // Validate GHN location selection
+      // Validate location selection
       if (!isLocationComplete()) {
         showToast('Vui lòng chọn Tỉnh/Thành phố, Quận/Huyện, Xã/Phường cho địa chỉ giao hàng', 'error');
         return;
       }
 
-      // Check if GHN configuration is valid
+      // Check if the shipping integration is usable
       if (!isConfigValid) {
         showToast('Dịch vụ giao hàng không khả dụng. Vui lòng liên hệ với hỗ trợ.', 'error');
         return;
@@ -298,16 +298,16 @@ export default function CheckoutPage() {
         return;
       }
 
-      // Validate phone number against what GHN actually accepts. The old regex
-      // (1-16 digits, any prefix) let 9-digit numbers and bogus prefixes like
-      // 012… through; GHN then rejected the whole shipping order with
-      // `master_data_validate_phone` and the order silently shipped nowhere.
+      // Validate the phone against what the carrier actually accepts. The old
+      // regex (1-16 digits, any prefix) let 9-digit numbers and bogus prefixes
+      // like 012… through; the carrier then rejected the whole shipping order
+      // over it and the order silently shipped nowhere.
       if (!isValidVnPhone(formData.phone)) {
         showToast(PHONE_ERROR_MESSAGE, 'error');
         return;
       }
       // Send the normalized form ("+84 912 345 678" -> "0912345678") so what we
-      // store, what GHN gets and what the customer sees all agree.
+      // store, what the carrier gets and what the customer sees all agree.
       const phoneForOrder = normalizeVnPhone(formData.phone);
 
       // Validate cart items
@@ -316,7 +316,7 @@ export default function CheckoutPage() {
         return;
       }
 
-      // Get GHN location data
+      // Get the selected location
       const locationData = getLocationData();
       const completeAddress = getCompleteAddress();
 
@@ -327,16 +327,16 @@ export default function CheckoutPage() {
 
       // Prepare order data with proper structure matching backend OrderCreate schema
       const orderData = {
-        // Only send books to backend items; stationery goes via ghn_items
+        // Only send books to backend items; stationery goes via extra_items
         items: cartItems
           .filter(item => !!item.author)
           .map(item => ({
             book_id: parseInt(item.id),
             quantity: parseInt(item.quantity)
           })),
-        // Send non-book items to GHN to ensure they appear in GHN dashboard
+        // Send non-book items too so they appear on the carrier's waybill.
         // Heuristic: stationery items typically have no author field
-        ghn_items: cartItems
+        extra_items: cartItems
           .filter(item => !item.author)
           .map(item => ({
             stationery_id: parseInt(item.stationery_id ?? item.id),
@@ -346,7 +346,7 @@ export default function CheckoutPage() {
           })),
         // Add shipping fee information (0 if any item has free shipping)
         shipping_fee: hasFreeShipItem ? 0 : (shippingFee?.total || 0),
-        shipping_method: hasFreeShipItem ? 'Free Shipping' : 'GHN Express',
+        shipping_method: hasFreeShipItem ? 'Free Shipping' : (shippingFee?.carrier || 'GoShip'),
         // Add payment method and cod_amount logic.
         // For PayOS the courier collects nothing on delivery — cod_amount must be 0.
         payment_method: formData.paymentMethod,
@@ -355,10 +355,10 @@ export default function CheckoutPage() {
 
       // Handle address for authenticated users
       if (isAuthenticated) {
-        // Add customer full name for GHN integration
+        // Full name the carrier prints on the waybill
         orderData.shipping_full_name = `${formData.firstName} ${formData.lastName}`.trim();
 
-        // ALWAYS include these fields for GHN integration, regardless of address selection
+        // ALWAYS include these fields for the carrier, regardless of address selection
         orderData.shipping_phone_number = phoneForOrder;
         orderData.shipping_address_line1 = formData.address.trim();
         orderData.shipping_address_line2 = formData.addressLine2?.trim() || null;
@@ -366,26 +366,29 @@ export default function CheckoutPage() {
         orderData.shipping_postal_code = selectedWard.code;
         orderData.shipping_country = 'Vietnam';
 
-        // Add GHN specific data - REQUIRED for all authenticated orders
-        orderData.ghn_province_id = selectedProvince.id;
-        orderData.ghn_district_id = selectedDistrict.id;
-        orderData.ghn_ward_code = selectedWard.code;
-        orderData.ghn_province_name = selectedProvince.name;
-        orderData.ghn_district_name = selectedDistrict.name;
-        orderData.ghn_ward_name = selectedWard.name;
-        orderData.shipping_service_id = shippingFee?.service_id;
+        // Carrier location ids - REQUIRED for all authenticated orders
+        orderData.ship_province_id = selectedProvince.id;
+        orderData.ship_district_id = selectedDistrict.id;
+        orderData.ship_ward_code = selectedWard.code;
+        orderData.ship_province_name = selectedProvince.name;
+        orderData.ship_district_name = selectedDistrict.name;
+        orderData.ship_ward_name = selectedWard.name;
+        orderData.shipping_service_code = shippingFee?.carrierCode;
+        // The exact quote the customer was shown, booked verbatim at fulfilment
+        // so they are charged the price on this page.
+        orderData.shipping_rate_id = shippingFee?.rateId;
 
-        // Package dimensions for GHN (using defaults)
+        // Package dimensions (using defaults)
         orderData.package_weight = 1000; // 1kg default
         orderData.package_length = 30;   // 30cm
         orderData.package_width = 20;    // 20cm
         orderData.package_height = 10;   // 10cm
 
         if (selectedAddressId) {
-          // Use existing saved address (but still send all fields above for GHN)
+          // Use existing saved address (but still send all fields above)
           orderData.shipping_address_id = selectedAddressId;
         } else if (useNewAddress) {
-          // Provide new address data with GHN location
+          // Provide new address data with the carrier location
           orderData.shipping_address = {
             phone_number: phoneForOrder,
             address_line1: formData.address.trim(),
@@ -394,13 +397,13 @@ export default function CheckoutPage() {
             postal_code: selectedWard.code,
             country: 'Vietnam',
             is_default_shipping: false,
-            // Add GHN specific data
-            ghn_province_id: selectedProvince.id,
-            ghn_district_id: selectedDistrict.id,
-            ghn_ward_code: selectedWard.code,
-            ghn_province_name: selectedProvince.name,
-            ghn_district_name: selectedDistrict.name,
-            ghn_ward_name: selectedWard.name
+            // Carrier location ids
+            ship_province_id: selectedProvince.id,
+            ship_district_id: selectedDistrict.id,
+            ship_ward_code: selectedWard.code,
+            ship_province_name: selectedProvince.name,
+            ship_district_name: selectedDistrict.name,
+            ship_ward_name: selectedWard.name
           };
           // Save address if requested
           if (saveNewAddress) {
@@ -408,7 +411,7 @@ export default function CheckoutPage() {
           }
         }
       } else {
-        // Guest checkout - provide shipping details directly with GHN location
+        // Guest checkout - provide shipping details directly with the location
         orderData.guest_email = formData.email.trim().toLowerCase();
         orderData.shipping_phone_number = phoneForOrder;
         orderData.shipping_address_line1 = formData.address.trim();
@@ -416,18 +419,21 @@ export default function CheckoutPage() {
         orderData.shipping_city = completeAddress;
         orderData.shipping_postal_code = selectedWard.code;
         orderData.shipping_country = 'Vietnam';
-        // Add customer full name for GHN integration
+        // Full name the carrier prints on the waybill
         orderData.shipping_full_name = `${formData.firstName} ${formData.lastName}`.trim();
-        // Add GHN specific data for guest checkout
-        orderData.ghn_province_id = selectedProvince.id;
-        orderData.ghn_district_id = selectedDistrict.id;
-        orderData.ghn_ward_code = selectedWard.code;
-        orderData.ghn_province_name = selectedProvince.name;
-        orderData.ghn_district_name = selectedDistrict.name;
-        orderData.ghn_ward_name = selectedWard.name;
-        orderData.shipping_service_id = shippingFee?.service_id;
+        // Carrier location ids for guest checkout
+        orderData.ship_province_id = selectedProvince.id;
+        orderData.ship_district_id = selectedDistrict.id;
+        orderData.ship_ward_code = selectedWard.code;
+        orderData.ship_province_name = selectedProvince.name;
+        orderData.ship_district_name = selectedDistrict.name;
+        orderData.ship_ward_name = selectedWard.name;
+        orderData.shipping_service_code = shippingFee?.carrierCode;
+        // The exact quote the customer was shown, booked verbatim at fulfilment
+        // so they are charged the price on this page.
+        orderData.shipping_rate_id = shippingFee?.rateId;
 
-        // Package dimensions for GHN (using defaults)
+        // Package dimensions (using defaults)
         orderData.package_weight = 1000; // 1kg default
         orderData.package_length = 30;   // 30cm
         orderData.package_width = 20;    // 20cm
@@ -443,7 +449,7 @@ export default function CheckoutPage() {
       console.log('Selected Address ID:', selectedAddressId);
       console.log('Use New Address:', useNewAddress);
       console.log('Save New Address:', saveNewAddress);
-      console.log('GHN Location Data:');
+      console.log('Shipping Location:');
       console.log('  - Province:', selectedProvince);
       console.log('  - District:', selectedDistrict);
       console.log('  - Ward:', selectedWard);
@@ -457,9 +463,9 @@ export default function CheckoutPage() {
       console.groupCollapsed('Checkout: Order creation response');
       console.log('Order result:', result);
       console.log('Order ID:', result?.order_id || result?.id);
-      console.log('GHN Order Code:', result?.ghn_order_code || '(none)');
-      if (result?.ghn_order_code) {
-        console.log('Zalo ZNS: backend will send notification after GHN creation.');
+      console.log('Tracking Code:', result?.tracking_code || '(none)');
+      if (result?.tracking_code) {
+        console.log('Order email is sent server-side after the waybill is created.');
         const normalizePhone = (phone) => {
           if (!phone) return null;
           const raw = String(phone).replace(/\D+/g, '');
@@ -475,16 +481,16 @@ export default function CheckoutPage() {
         const totalNumber = baseTotal + fee;
         const parts = [
           isAuthenticated ? orderData.shipping_address?.address_line1 : orderData.shipping_address_line1,
-          isAuthenticated ? orderData.shipping_address?.ghn_ward_name : orderData.ghn_ward_name,
-          isAuthenticated ? orderData.shipping_address?.ghn_district_name : orderData.ghn_district_name,
-          isAuthenticated ? orderData.shipping_address?.ghn_province_name : orderData.ghn_province_name,
+          isAuthenticated ? orderData.shipping_address?.ship_ward_name : orderData.ship_ward_name,
+          isAuthenticated ? orderData.shipping_address?.ship_district_name : orderData.ship_district_name,
+          isAuthenticated ? orderData.shipping_address?.ship_province_name : orderData.ship_province_name,
         ].filter(Boolean);
         const addressJoined = parts.join(', ');
         const template_data = {
-          order_code: result?.ghn_order_code,
+          order_code: result?.tracking_code,
           total: totalNumber,
           address: addressJoined || '',
-          deli_code: result?.ghn_order_code,
+          deli_code: result?.tracking_code,
           customer_name: orderData?.shipping_full_name || '',
           payment_method: String(orderData?.payment_method || '').toUpperCase(),
           tracking_id: '(generated server-side)',
@@ -506,7 +512,7 @@ export default function CheckoutPage() {
         console.log('template_data:', template_data);
         console.groupEnd();
       } else {
-        console.log('Zalo ZNS: GHN code missing; notification will be skipped.');
+        console.log('No waybill yet; the order email will say so.');
       }
       console.groupEnd();
 
@@ -873,7 +879,7 @@ export default function CheckoutPage() {
                 {shippingFee && (
                   <div className="md:col-span-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-blue-800">Phí vận chuyển (GHN Express):</span>
+                      <span className="text-sm text-blue-800">Phí vận chuyển:</span>
                       <span className="font-semibold text-blue-900">
                         {formatShippingFee(shippingFee.total)}
                       </span>
@@ -1126,7 +1132,7 @@ export default function CheckoutPage() {
                 <span className="font-medium">{getCartTotal()}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Đơn vị giao hàng {hasFreeShipItem ? '' : '(GHN Express)'}</span>
+                <span className="text-gray-600">Đơn vị giao hàng {hasFreeShipItem ? '' : `(${shippingFee?.carrier || 'chọn khi tính phí'})`}</span>
                 <span className="font-medium">
                   {hasFreeShipItem ? (
                     <span className="text-orange-600 font-bold flex items-center gap-1">
@@ -1146,10 +1152,8 @@ export default function CheckoutPage() {
               </div>
               {shippingFee && !hasFreeShipItem && (
                 <div className="text-xs text-gray-500 -mt-2">
-                  Service Fee: {formatShippingFee(shippingFee.serviceFee)}
-                  {shippingFee.insuranceFee > 0 && (
-                    <span> • Bảo hiểm: {formatShippingFee(shippingFee.insuranceFee)}</span>
-                  )}
+                  {shippingFee.carrier}{shippingFee.service ? ` · ${shippingFee.service}` : ''}
+                  {shippingFee.eta && <span> • {shippingFee.eta}</span>}
                 </div>
               )}
               <div className="flex justify-between pt-4 border-t">
