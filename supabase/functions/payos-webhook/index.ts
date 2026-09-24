@@ -8,17 +8,17 @@
 //         -> mark Paid + set paid_at;
 //      b. a `pending_orders` row (the current flow: checkout parked the priced
 //         basket and no order exists yet) -> create the order, already Paid.
-//   3. Fulfill: submit to GHN with cod_amount=0 (customer already paid) and
-//      send the order email. Both steps are idempotent (skip if already done),
-//      so if the GHN submit fails we answer 500 and let PayOS redeliver rather
-//      than acking an order that is paid but has no waybill.
+//   3. Fulfill: book a GoShip shipment with cod=0 (the customer has already
+//      paid) and send the order email. Both steps are idempotent (skip if
+//      already done), so if the booking fails we answer 500 and let PayOS
+//      redeliver rather than acking an order that is paid but never shipped.
 //
 // Money-correctness rule for (b): once PayOS says paid, an order MUST come out
 // of this function. If the basket has gone out of stock in the meantime we
 // still create the order and flag it "Cần kiểm tra" — refusing it here would
 // keep the customer's money and leave them with nothing.
 //
-// Secrets: PAYOS_CHECKSUM_KEY (+ GHN_* / MAIL_* for fulfillment, see _shared).
+// Secrets: PAYOS_CHECKSUM_KEY (+ GOSHIP_* / MAIL_* for fulfillment, see _shared).
 //
 // NOTE: this function must run WITHOUT the platform JWT gate so PayOS can reach
 // it server-to-server — otherwise every webhook is rejected 401 before the
@@ -42,12 +42,19 @@ type Client = ReturnType<typeof serviceClient>;
 /**
  * Fulfil a paid order and answer PayOS in the way that gets us what we need.
  *
- * 200 once the waybill exists. Otherwise 500 for a transient failure, because
- * PayOS only redelivers a webhook it did not get a 2xx for and that redelivery
- * is our automatic retry — fulfillOrder() is idempotent, so it resumes exactly
- * where the failed attempt stopped. A non-retryable failure (missing address,
- * GHN unconfigured) will never fix itself, so ack that one and leave
- * `ghn_error` on the row for an admin to act on.
+ * 200 once the SHIPMENT EXISTS — which means `shipmentId`, not `trackingCode`.
+ * GoShip books a shipment immediately but the carrier assigns the waybill later
+ * (status 900, "Đơn mới"), so a freshly booked order legitimately has no
+ * tracking number. Keying success on the waybill would mark every PayOS order a
+ * failure and answer 500, and PayOS would redeliver until it gave up — on
+ * orders that were in fact shipped.
+ *
+ * Otherwise 500 for a transient failure, because PayOS only redelivers a
+ * webhook it did not get a 2xx for and that redelivery is our automatic retry —
+ * fulfillOrder() is idempotent, so it resumes exactly where the failed attempt
+ * stopped. A non-retryable failure (missing address, GoShip unconfigured) will
+ * never fix itself, so ack that one and leave `shipping_error` on the row for
+ * an admin to act on.
  */
 async function fulfilAndAnswer(
   req: Request,
@@ -59,17 +66,17 @@ async function fulfilAndAnswer(
     result = await fulfillOrder(supabase, orderId, { forceCodZero: true });
   } catch (e) {
     console.error("Fulfilment error for order", orderId, e);
-    result = { ghnCode: null, ghnError: String(e), retryable: true };
+    result = { shipmentId: null, trackingCode: null, shippingError: String(e), retryable: true };
   }
 
-  if (result.ghnCode) return json(req, { success: true });
+  if (result.shipmentId) return json(req, { success: true });
 
   if (result.retryable) {
-    console.error(`Order ${orderId}: fulfilment failed, asking PayOS to redeliver — ${result.ghnError}`);
+    console.error(`Order ${orderId}: fulfilment failed, asking PayOS to redeliver — ${result.shippingError}`);
     return json(req, { detail: "Fulfilment pending, please retry" }, 500);
   }
 
-  console.error(`Order ${orderId}: fulfilment needs manual fixing — ${result.ghnError}`);
+  console.error(`Order ${orderId}: fulfilment needs manual fixing — ${result.shippingError}`);
   return json(req, { success: true });
 }
 
@@ -104,8 +111,8 @@ async function materialisePendingOrder(
   // A previous delivery already created the order — finish its fulfilment.
   if (pending.order_id) {
     const { data: existing } = await supabase
-      .from("orders").select("ghn_order_code").eq("order_id", pending.order_id).maybeSingle();
-    if (existing?.ghn_order_code) return json(req, { success: true });
+      .from("orders").select("carrier_shipment_id").eq("order_id", pending.order_id).maybeSingle();
+    if (existing?.carrier_shipment_id) return json(req, { success: true });
     return await fulfilAndAnswer(req, supabase, pending.order_id as number);
   }
 
@@ -229,13 +236,13 @@ Deno.serve(async (req) => {
     );
   }
 
-  // Idempotent: ack a payment we finished. But "Paid with no waybill" means an
-  // earlier delivery died between the payment update and the GHN submit — this
+  // Idempotent: ack a payment we finished. But "Paid with no shipment" means an
+  // earlier delivery died between the payment update and the booking — this
   // redelivery is the chance to finish the job, so don't ack it away or the
   // order stays paid-but-never-shipped forever.
   if (String(order.payment_status ?? "").toLowerCase() === "paid") {
-    if (order.ghn_order_code) return json(req, { success: true });
-    console.warn(`Order ${order.order_id} is Paid with no GHN waybill; retrying fulfilment`);
+    if (order.carrier_shipment_id) return json(req, { success: true });
+    console.warn(`Order ${order.order_id} is Paid with no shipment booked; retrying fulfilment`);
     return await fulfilAndAnswer(req, supabase, order.order_id);
   }
 
@@ -274,6 +281,6 @@ Deno.serve(async (req) => {
   }
   order.payment_status = "Paid";
 
-  // Fulfill (GHN cod=0 + order email). Idempotent inside fulfillOrder.
+  // Fulfill (GoShip cod=0 + order email). Idempotent inside fulfillOrder.
   return await fulfilAndAnswer(req, supabase, order.order_id);
 });

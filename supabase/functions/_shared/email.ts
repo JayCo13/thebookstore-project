@@ -59,18 +59,18 @@ interface OrderEmailData {
   totalAmount: number;
   shippingFee: number;
   paymentLabel: string;
-  ghnCode: string;
+  trackingCode: string;
+  /** Tracking page for whichever carrier took this parcel. */
+  trackingUrl: string;
+  /** Carrier that actually moved it — a per-order fact now, not a constant. */
+  carrierName: string;
   items: Array<{ name: string; quantity: number; price: number }>;
 }
 
-// Every shipment goes out through GHN, so the carrier is a constant rather
-// than an order field. If a second carrier ever appears this becomes a lookup.
-const CARRIER_NAME = "Giao Hàng Nhanh (GHN)";
-
-/** GHN's public tracking page — no login needed, works for the recipient. */
-function ghnTrackingUrl(code: string): string {
-  return `https://donhang.ghn.vn/?order_code=${encodeURIComponent(code)}`;
-}
+// Shipping is booked through GoShip, which picks among ~14 carriers per route,
+// so "who is delivering this" varies per order and travels with the data. The
+// fallback covers the window between booking and the carrier being assigned.
+const carrierOf = (d: OrderEmailData) => d.carrierName || "đơn vị vận chuyển đối tác";
 
 function paymentLabel(order: Record<string, unknown>): string {
   const pm = String(order.payment_method ?? "").toLowerCase();
@@ -96,25 +96,29 @@ export async function sendOrderConfirmationEmail(d: OrderEmailData): Promise<boo
     .join("");
   const grandTotal = d.totalAmount + d.shippingFee;
 
-  // Carrier + tracking. When GHN hasn't accepted the order yet there's no code
-  // to track, so say that plainly instead of showing a dead button.
-  const shippingBlock = d.ghnCode
+  // Carrier + tracking. A GoShip shipment exists before the carrier has issued a
+  // waybill, so right after checkout there is genuinely nothing to track yet —
+  // say that plainly instead of rendering a button that goes nowhere. The link
+  // block also needs the url, not just the code: GoShip supplies the tracking
+  // page per carrier and it arrives with the waybill, not before it.
+  const trackable = Boolean(d.trackingCode && d.trackingUrl);
+  const shippingBlock = trackable
     ? `<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f8ff;border:1px solid #cfe4ee;border-radius:6px;margin:20px 0;">
       <tr><td style="padding:20px;">
-        <p style="margin:0 0 6px;color:#555;">Đơn vị vận chuyển: <strong>${CARRIER_NAME}</strong></p>
-        <p style="margin:0 0 16px;color:#555;">Mã vận đơn: <strong style="font-family:monospace;font-size:16px;letter-spacing:1px;">${d.ghnCode}</strong></p>
-        <a href="${ghnTrackingUrl(d.ghnCode)}" target="_blank"
+        <p style="margin:0 0 6px;color:#555;">Đơn vị vận chuyển: <strong>${carrierOf(d)}</strong></p>
+        <p style="margin:0 0 16px;color:#555;">Mã vận đơn: <strong style="font-family:monospace;font-size:16px;letter-spacing:1px;">${d.trackingCode}</strong></p>
+        <a href="${d.trackingUrl}" target="_blank"
            style="display:inline-block;background:#008080;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:bold;">
           Theo dõi đơn hàng
         </a>
         <p style="margin:14px 0 0;color:#888;font-size:12px;">
-          Hoặc mở liên kết: <a href="${ghnTrackingUrl(d.ghnCode)}" style="color:#008080;">${ghnTrackingUrl(d.ghnCode)}</a>
+          Hoặc mở liên kết: <a href="${d.trackingUrl}" style="color:#008080;">${d.trackingUrl}</a>
         </p>
       </td></tr>
     </table>`
     : `<table width="100%" cellpadding="0" cellspacing="0" style="background:#fffbe6;border:1px solid #ffe08a;border-radius:6px;margin:20px 0;">
       <tr><td style="padding:20px;">
-        <p style="margin:0;color:#7a5b00;">Đơn hàng sẽ được giao qua <strong>${CARRIER_NAME}</strong>.
+        <p style="margin:0;color:#7a5b00;">Đơn hàng sẽ được giao qua <strong>${carrierOf(d)}</strong>.
         Chúng tôi sẽ gửi mã vận đơn và liên kết theo dõi ngay khi đơn được bàn giao cho đơn vị vận chuyển.</p>
       </td></tr>
     </table>`;
@@ -184,11 +188,13 @@ export async function sendNewOrderAdminEmail(d: OrderEmailData): Promise<boolean
       <p>Phí vận chuyển: <strong>${vnd(d.shippingFee)}</strong></p>
       <p style="font-size:18px;color:#2e7d32;">Tổng cộng: <strong>${vnd(grandTotal)}</strong></p>
       <p>Phương thức: <strong style="color:#e65100;">${d.paymentLabel}</strong></p>
-      <p>Đơn vị vận chuyển: <strong>${CARRIER_NAME}</strong></p>
-      <p>Mã vận đơn GHN: ${
-        d.ghnCode
-          ? `<strong><a href="${ghnTrackingUrl(d.ghnCode)}" style="color:#008080;">${d.ghnCode}</a></strong>`
-          : `<strong style="color:#c62828;">Chưa có — đơn CHƯA sang GHN, cần kiểm tra</strong>`
+      <p>Đơn vị vận chuyển: <strong>${carrierOf(d)}</strong></p>
+      <p>Mã vận đơn: ${
+        d.trackingCode
+          ? (d.trackingUrl
+            ? `<strong><a href="${d.trackingUrl}" style="color:#008080;">${d.trackingCode}</a></strong>`
+            : `<strong>${d.trackingCode}</strong>`)
+          : `<strong style="color:#c62828;">Chưa có — hãng vận chuyển chưa cấp mã, kiểm tra nếu quá lâu</strong>`
       }</p>
     </div>
   </td></tr>

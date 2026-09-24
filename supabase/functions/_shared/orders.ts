@@ -9,14 +9,16 @@
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 
 export interface OrderItemIn { book_id?: number | null; stationery_id?: number | null; quantity: number }
-export interface GhnItemIn { stationery_id?: number | null; name?: string; quantity: number; price: number }
+export interface ExtraItemIn { stationery_id?: number | null; name?: string; quantity: number; price: number }
 export interface AddressIn {
   phone_number: string; address_line1: string; address_line2?: string | null;
   city: string; postal_code: string; country: string; is_default_shipping?: boolean;
 }
 export interface OrderCreateBody {
   items: OrderItemIn[];
-  ghn_items?: GhnItemIn[] | null;
+  extra_items?: ExtraItemIn[] | null;
+  /** Pre-VTP name for `extra_items`. Still read for baskets parked before the switch. */
+  ghn_items?: ExtraItemIn[] | null;
   shipping_address_id?: number | null;
   shipping_address?: AddressIn | null;
   save_address?: boolean;
@@ -31,6 +33,29 @@ export interface OrderCreateBody {
   payment_method?: string | null;
   cod_amount?: number | null;
   shipping_full_name?: string | null;
+  // GoShip codes places with STRINGS ("700000" for Hồ Chí Minh), unlike GHN and
+  // VTP which used integers. Typed as string here; the column is text.
+  ship_province_id?: string | null;
+  ship_district_id?: string | null;
+  ship_ward_code?: string | null;
+  ship_province_name?: string | null;
+  ship_district_name?: string | null;
+  ship_ward_name?: string | null;
+  /** Carrier GoShip quoted, e.g. "ghnv3" — recorded, not chosen by us. */
+  shipping_service_code?: string | null;
+  /**
+   * The exact GoShip quote the customer was shown. Booked verbatim at
+   * fulfilment so the price they were charged is the price that gets used;
+   * without it the shipment is re-quoted and could come back different.
+   */
+  shipping_rate_id?: string | null;
+  shipping_fee?: number | null;
+
+  // ── superseded by the ship_* / shipping_service_code fields above ─────────
+  // A PayOS checkout parks its priced basket in `pending_orders` and the order
+  // is only inserted when the webhook fires, which can be minutes later — and
+  // on the far side of a deploy. These keep a payment that was already in
+  // flight during the GHN -> VTP switch from landing without an address.
   ghn_province_id?: number | null;
   ghn_district_id?: number | null;
   ghn_ward_code?: string | null;
@@ -38,7 +63,6 @@ export interface OrderCreateBody {
   ghn_district_name?: string | null;
   ghn_ward_name?: string | null;
   shipping_service_id?: number | null;
-  shipping_fee?: number | null;
   package_weight?: number | null;
   package_length?: number | null;
   package_width?: number | null;
@@ -139,8 +163,8 @@ export async function priceOrder(
     }
   }
 
-  // Stationery passed via ghn_items (legacy frontend shape).
-  for (const gi of body.ghn_items ?? []) {
+  // Stationery passed outside `items` (legacy frontend shape).
+  for (const gi of body.extra_items ?? body.ghn_items ?? []) {
     const sid = gi.stationery_id;
     const qty = Number(gi.quantity ?? 0);
     if (!sid || qty <= 0) continue;
@@ -246,6 +270,21 @@ export async function insertOrder(
   appUserId: number | null,
   opts: InsertOpts = {},
 ): Promise<InsertResult> {
+  // A PayOS basket parked before a carrier switch carries the OLD carrier's
+  // location ids. They are NOT interchangeable — GHN district 1442, VTP district
+  // 1442 and GoShip district "1442" are three different places — so such an
+  // order must never be handed to the current client: it would either be
+  // refused or, worse, accepted and delivered somewhere else. Mark it with the
+  // carrier its address actually belongs to and record why it is stuck; the
+  // fulfiller skips it and an admin re-enters the address.
+  /** Location codes are text now; a legacy integer id stores as its digits. */
+  const str = (v: unknown): string | null =>
+    v === null || v === undefined || v === "" ? null : String(v);
+
+  const hasCurrentAddress = body.ship_province_id != null || body.ship_district_id != null;
+  const hasLegacyAddress = !hasCurrentAddress &&
+    (body.ghn_province_id != null || body.ghn_district_id != null);
+
   const orderInsert: Record<string, unknown> = {
     user_id: appUserId,
     total_amount: priced.totalAmount,
@@ -262,13 +301,29 @@ export async function insertOrder(
     payment_method: body.payment_method ?? null,
     cod_amount: body.cod_amount ?? null,
     shipping_full_name: body.shipping_full_name ?? null,
-    ghn_province_id: body.ghn_province_id ?? null,
-    ghn_district_id: body.ghn_district_id ?? null,
-    ghn_ward_code: body.ghn_ward_code ?? null,
-    ghn_province_name: body.ghn_province_name ?? null,
-    ghn_district_name: body.ghn_district_name ?? null,
-    ghn_ward_name: body.ghn_ward_name ?? null,
-    shipping_service_id: body.shipping_service_id ?? null,
+    // `?? body.ghn_*` covers a PayOS basket priced before a carrier switch and
+    // paid for after it. The ids belong to whichever carrier was live then and
+    // do not translate, so such an order lands with an address the current
+    // client cannot ship — but it lands, with everything an admin needs to
+    // re-enter it, instead of silently losing the delivery address entirely.
+    // Stringified because the columns are text now: GoShip codes places with
+    // strings, and an integer from the GHN era is stored as its own digits.
+    ship_province_id: str(body.ship_province_id ?? body.ghn_province_id),
+    ship_district_id: str(body.ship_district_id ?? body.ghn_district_id),
+    ship_ward_code: body.ship_ward_code ?? body.ghn_ward_code ?? null,
+    ship_province_name: body.ship_province_name ?? body.ghn_province_name ?? null,
+    ship_district_name: body.ship_district_name ?? body.ghn_district_name ?? null,
+    ship_ward_name: body.ship_ward_name ?? body.ghn_ward_name ?? null,
+    carrier: hasLegacyAddress ? "GHN" : "GOSHIP",
+    ...(hasLegacyAddress
+      ? {
+        shipping_error:
+          "Đơn được đặt trước khi đổi đơn vị vận chuyển, địa chỉ đang lưu theo mã vùng GHN. " +
+          "Cần nhập lại Tỉnh/Quận/Phường rồi tạo lại vận đơn.",
+      }
+      : {}),
+    shipping_service_code: body.shipping_service_code ?? null,
+    shipping_rate_id: body.shipping_rate_id ?? null,
     shipping_fee: body.shipping_fee ?? null,
     package_weight: body.package_weight ?? null,
     package_length: body.package_length ?? null,

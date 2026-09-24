@@ -77,3 +77,14 @@ enabled = false
 # only applies to that one deploy and silently reverts on the next one.
 [functions.payos-webhook]
 verify_jwt = false
+
+# GoShip calls this server-to-server with no Supabase session, so the platform's
+# JWT gate would reject every status push with 401 before the function even
+# runs. The function authenticates the caller itself, by verifying the
+# HMAC-SHA256 signature in `x-goship-hmac-sha256` over the raw body.
+#
+# Same reasoning as payos-webhook above: declared here rather than passing
+# `--no-verify-jwt` at deploy time, which only applies to that one deploy and
+# silently reverts on the next one.
+[functions.goship-webhook]
+verify_jwt = false

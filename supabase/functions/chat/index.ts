@@ -9,15 +9,13 @@
 //     block below.
 //   * Session history + shipping-fee gathering state move from Redis to the
 //     `public.chat_sessions` table.
-//   * The GHN shipping-fee intent flow is preserved faithfully (uses the ported
-//     _shared/ghn.ts lookups + calculateShippingFee).
+//   * The shipping-fee intent flow is preserved, now quoting GoShip via
+//     _shared/goship.ts (name lookups + getRates).
 //
-// Secrets: GROQ_API_KEY, GHN_* (+ SUPABASE_* injected).
+// Secrets: GROQ_API_KEY, GOSHIP_* (+ SUPABASE_* injected).
 import { handleOptions, json } from "../_shared/cors.ts";
 import { serviceClient } from "../_shared/supabase.ts";
-import {
-  calculateShippingFee, findDistrict, findProvince, findWard, ghnConfigured,
-} from "../_shared/ghn.ts";
+import { findCity, findDistrict, findWard, getRates } from "../_shared/goship.ts";
 
 const STRICT_SYSTEM_PROMPT =
   "Bạn là trợ lý hỗ trợ khách hàng cho cửa hàng Tâm Nguồn - chuyên bán sách, văn phòng phẩm, dụng cụ yoga và các sản phẩm tâm linh.\n" +
@@ -43,14 +41,14 @@ function parseShippingParams(text: string): Record<string, number | string> {
   const raw: Record<string, string> = {};
   for (const m of text.matchAll(/\b([a-z_]+)\s*=\s*([\w-]+)\b/gi)) raw[m[1].toLowerCase()] = m[2];
   const map: Record<string, string[]> = {
-    to_district_id: ["to_district_id", "district_id"], to_ward_code: ["to_ward_code", "ward_code"],
-    service_type_id: ["service_type_id", "service"], weight: ["weight", "can_nang"],
+    district_id: ["to_district_id", "district_id"], ward_id: ["to_ward_id", "ward_id"],
+    weight: ["weight", "can_nang"],
     length: ["length"], width: ["width"], height: ["height"], insurance_value: ["insurance_value", "bao_hiem"],
   };
   for (const [key, keys] of Object.entries(map)) {
     for (const k of keys) if (k in raw) { out[key] = raw[k]; break; }
   }
-  for (const k of ["to_district_id", "service_type_id", "weight", "length", "width", "height", "insurance_value"]) {
+  for (const k of ["district_id", "ward_id", "weight", "length", "width", "height", "insurance_value"]) {
     if (k in out) { const n = parseInt(String(out[k]), 10); if (!isNaN(n)) out[k] = n; }
   }
   return out;
@@ -61,20 +59,19 @@ type Ctx = Record<string, unknown>;
 async function extractLocation(ctx: Ctx, text: string): Promise<Ctx> {
   const norm = normVi(text);
   if (!ctx.province_id) {
-    const prov = await findProvince(norm);
-    if (prov) { ctx.province_id = prov.ProvinceID; ctx.province = prov.ProvinceName; }
+    const city = await findCity(norm);
+    if (city) { ctx.province_id = city.id; ctx.province = city.name; }
   }
   if (ctx.province_id && !ctx.district_id) {
     const q = norm.replace(normVi(String(ctx.province ?? "")), "").trim() || norm;
-    const dist = await findDistrict(Number(ctx.province_id), q);
-    if (dist) { ctx.district_id = dist.DistrictID; ctx.district = dist.DistrictName; }
+    const dist = await findDistrict(String(ctx.province_id), q);
+    if (dist) { ctx.district_id = dist.id; ctx.district = dist.name; }
   }
-  if (ctx.district_id && !ctx.to_ward_code) {
+  if (ctx.district_id && !ctx.ward_id) {
     const q = norm.replace(normVi(String(ctx.district ?? "")), "").trim() || norm;
-    const ward = await findWard(Number(ctx.district_id), q);
-    if (ward) { ctx.to_ward_code = ward.WardCode; ctx.ward = ward.WardName; }
+    const ward = await findWard(String(ctx.district_id), q);
+    if (ward) { ctx.ward_id = ward.id; ctx.ward = ward.name; }
   }
-  if (ctx.district_id) ctx.to_district_id = ctx.district_id;
   return ctx;
 }
 
@@ -138,9 +135,6 @@ Deno.serve(async (req) => {
   const shippingKw = ["phí vận chuyển", "tiền ship", "phí ship", "shipping fee", "ship"];
   const intent = shippingKw.some((k) => qLower.includes(k));
   if (intent || shippingCtx.intent_active) {
-    if (!ghnConfigured()) {
-      return json(req, { response: "Hệ thống GHN chưa cấu hình. Vui lòng thử lại sau.", session_id: sessionId });
-    }
     shippingCtx.intent_active = true;
     Object.assign(shippingCtx, parseShippingParams(question));
     shippingCtx = await extractLocation(shippingCtx, question);
@@ -148,21 +142,24 @@ Deno.serve(async (req) => {
     if (qm) shippingCtx.quantity = parseInt(qm[1], 10);
 
     let response: string;
-    if (shippingCtx.to_district_id && shippingCtx.to_ward_code) {
-      const fee = await calculateShippingFee({
-        to_district_id: Number(shippingCtx.to_district_id),
-        to_ward_code: String(shippingCtx.to_ward_code),
-        service_type_id: Number(shippingCtx.service_type_id ?? 2),
+    if (shippingCtx.province_id && shippingCtx.district_id) {
+      // GoShip quotes every carrier for the route in one call; the cheapest is
+      // what checkout would pick, so it is what the bot should quote.
+      const rates = await getRates({
+        toCity: String(shippingCtx.province_id),
+        toDistrict: String(shippingCtx.district_id),
         weight: Number(shippingCtx.weight ?? 500),
         length: Number(shippingCtx.length ?? 20),
         width: Number(shippingCtx.width ?? 15),
         height: Number(shippingCtx.height ?? 10),
-        insurance_value: Number(shippingCtx.insurance_value ?? 0),
+        amount: Number(shippingCtx.insurance_value ?? 0),
       });
+      const fee = rates[0] ?? null;
       if (fee) {
         const loc = [shippingCtx.ward, shippingCtx.district, shippingCtx.province].filter(Boolean).join(", ") || "địa chỉ của bạn";
         const qty = shippingCtx.quantity ? ` cho ${shippingCtx.quantity} cuốn` : "";
-        response = `Phí vận chuyển dự kiến đến ${loc}${qty}: ${vnd(fee.total)} (phí dịch vụ: ${vnd(fee.service_fee)}, phí bảo hiểm: ${vnd(fee.insurance_fee ?? 0)}). Bạn có thể tiếp tục thanh toán để xác nhận mức phí ở bước giao hàng.`;
+        const eta = fee.expected ? `, ${fee.expected.toLowerCase()}` : "";
+        response = `Phí vận chuyển dự kiến đến ${loc}${qty}: ${vnd(fee.fee)} (${fee.carrier} - ${fee.service}${eta}). Bạn có thể tiếp tục thanh toán để xác nhận mức phí ở bước giao hàng.`;
         shippingCtx = {}; // clear intent after success
       } else {
         response = "Không tính được phí lúc này, bạn vui lòng thử lại sau.";
@@ -171,7 +168,6 @@ Deno.serve(async (req) => {
       const missing: string[] = [];
       if (!shippingCtx.province_id) missing.push("tỉnh/thành");
       else if (!shippingCtx.district_id) missing.push("quận/huyện");
-      else if (!shippingCtx.to_ward_code) missing.push("phường/xã");
       const askLoc = missing.length ? missing.join("; ") : "tỉnh/thành, quận/huyện, phường/xã";
       response = `Bạn vui lòng cho mình biết ${askLoc}? Nếu có cân nặng/kích thước ước tính của kiện hàng thì càng tốt.`;
     }

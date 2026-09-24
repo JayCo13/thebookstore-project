@@ -6,14 +6,14 @@
 //   2. Price the basket: validate items + stock, compute prices and the total,
 //      resolve the shipping address (shared with the PayOS path, _shared/orders.ts).
 //   3a. COD  -> insert the order + items, decrement stock, then fulfil INLINE
-//       (GHN submit + order email to customer and admin).
+//       (GoShip booking + order email to customer and admin).
 //   3b. PayOS -> insert NOTHING. Park the priced basket in `pending_orders` and
 //       return its `payos_order_code`. The frontend turns that into a checkout
 //       link, and `payos-webhook` creates the real order once the money lands —
 //       so an abandoned payment leaves no dead order and no held stock.
 //
 // Runs with service_role (bypasses RLS) — orders have no client INSERT policy.
-// Secrets: GHN_* + MAIL_* / ADMIN_EMAIL (for the COD inline fulfilment).
+// Secrets: GOSHIP_* + MAIL_* / ADMIN_EMAIL (for the COD inline fulfilment).
 import { handleOptions, json } from "../_shared/cors.ts";
 import { serviceClient, userClient } from "../_shared/supabase.ts";
 import { fulfillOrder } from "../_shared/fulfillment.ts";
@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
   if (!inserted.ok) return json(req, { detail: inserted.detail }, inserted.status);
   const orderId = inserted.orderId;
 
-  // COD (and any non-PayOS): fulfil inline — GHN submit + order email.
+  // COD (and any non-PayOS): fulfil inline — GoShip booking + order email.
   // Fire-and-forget semantics: a fulfilment hiccup must not fail the order.
   try {
     await fulfillOrder(supabase, orderId);
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
     console.error(`Inline fulfilment failed for order ${orderId}`, e);
   }
 
-  // Return the full order row (refetched so ghn_order_code/paid fields are current).
+  // Return the full order row (refetched so tracking_code/paid fields are current).
   const { data: finalOrder } = await supabase
     .from("orders").select("*").eq("order_id", orderId).single();
 
