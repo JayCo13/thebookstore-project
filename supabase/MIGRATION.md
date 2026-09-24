@@ -18,10 +18,11 @@ VPS/FastAPI backend is retired once this lands.
 | 7 | Cutover + retire FastAPI/VPS | ⬜ todo (operational — flip imports, point DNS, decommission VPS) |
 
 **Edge Functions delivered:** `create-order`, `payos-create-link`, `payos-webhook`,
-`ghn-sync-status`, `ghn-order-status`, `moderate-review`, `admin-login`,
+`goship-locations`, `goship-shipping-fee`, `goship-sync-status`,
+`goship-order-status`, `goship-webhook`, `moderate-review`, `admin-login`,
 `admin-rotate-code`, `import-books`, `upload-media`, `chat`, `sitemap`. Shared
-modules under `functions/_shared/`: `cors`, `supabase`, `ghn`, `payos`, `email`,
-`fulfillment`, `admin_code`.
+modules under `functions/_shared/`: `cors`, `supabase`, `goship`, `payos`,
+`email`, `fulfillment`, `orders`, `admin_code`.
 
 **Remaining follow-ups (noted inline):**
 - Review creation "verified purchase" + one-per-book rule → move to a Postgres
@@ -50,7 +51,7 @@ modules under `functions/_shared/`: `cors`, `supabase`, `ghn`, `payos`, `email`,
      reviews, wishlist, reading own orders) go straight to Postgres through
      PostgREST, governed by RLS.
    - **Edge Functions (service_role):** anything with side effects or secrets —
-     order creation, PayOS, GHN, order email, AI chatbot, admin login code,
+     order creation, PayOS, GoShip shipping, order email, AI chatbot, admin login code,
      bulk import — runs server-side and bypasses RLS.
 4. **CRA `api.js` keeps its surface.** The plan is to reimplement the named
    exports in `api.js` on top of supabase-js so page components barely change.
@@ -78,10 +79,14 @@ modules under `functions/_shared/`: `cors`, `supabase`, `ghn`, `payos`, `email`,
 
 | Function | Replaces | Notes |
 |---|---|---|
-| `create-order` | `POST /orders/` | guest+user orders, COD→insert+GHN+email inline, PayOS→park in `pending_orders` (no order row). ✅ done |
+| `create-order` | `POST /orders/` | guest+user orders, COD→insert+GoShip booking+email inline, PayOS→park in `pending_orders` (no order row). ✅ done |
 | `payos-create-link` | `POST /payments/payos/create-link` | calls PayOS, stores checkout url; takes `payos_order_code` (parked checkout) or `order_id` (legacy unpaid order) |
-| `payos-webhook` | `POST /payments/payos/webhook` | HMAC verify → create the order from `pending_orders` (or mark an existing one Paid) → fulfill (GHN cod=0 + email). Must be deployed with `verify_jwt = false`. ✅ done |
-| `ghn-sync-status` | `POST /orders/sync-ghn-status`, shipping-status GETs | GHN status polling |
+| `payos-webhook` | `POST /payments/payos/webhook` | HMAC verify → create the order from `pending_orders` (or mark an existing one Paid) → fulfill (GoShip `cod=0` + email). Must be deployed with `verify_jwt = false`. ✅ done |
+| `goship-locations` | (new) | province/district/ward for checkout. Exists because GoShip needs a Bearer token even for the address book, and that token can also book shipments |
+| `goship-shipping-fee` | (new) | checkout quote across all carriers; returns the `rate` id that fulfilment books verbatim |
+| `goship-webhook` | (new — GHN had no push) | GoShip status pushes. `verify_jwt = false`; HMAC-SHA256 over the raw body |
+| `goship-sync-status` | `POST /orders/sync-ghn-status` | batch reconcile; the fallback for a push GoShip abandoned after 3 retries |
+| `goship-order-status` | shipping-status GETs | one order's live shipment status |
 | `chat` | `POST /chat/` | **hardest** — ChromaDB + sentence-transformers + Groq. See below. |
 | `moderate-review` | `POST /moderation/review` | Groq call, stateless. ✅ done |
 | `admin-login` | `POST /auth/admin/login` | validate rotating code, then sign in |
@@ -89,8 +94,10 @@ modules under `functions/_shared/`: `cors`, `supabase`, `ghn`, `payos`, `email`,
 | `sitemap` | `GET /sitemap.xml` | or a Netlify function / prerender |
 | `upload-media` | book/stationery image, read-sample, audio endpoints | put to Storage; optional resize |
 
-Shared integration logic (`ghn_service`, `payos_service`, `email_service`,
-`order_fulfillment`) → port to TS modules under `functions/_shared/`.
+Shared integration logic (`payos_service`, `email_service`, `order_fulfillment`)
+→ port to TS modules under `functions/_shared/`. The old `ghn_service` has no
+successor: the shop moved to Viettel Post and then to GoShip, and
+`_shared/goship.ts` talks to an aggregator rather than to a carrier.
 
 > **Zalo dropped.** Zalo OA / ZNS is fully removed — order notifications now go
 > by **email** (`_shared/email.ts`, SMTP via the existing Gmail creds). No OAuth
@@ -155,13 +162,16 @@ verification (the anon key is a valid JWT, so guests still pass).
 ```bash
 supabase functions deploy payos-webhook    --no-verify-jwt   # PayOS server-to-server
 supabase functions deploy admin-login      --no-verify-jwt   # public; validates code+pw itself
+supabase functions deploy goship-webhook   # verify_jwt = false via config.toml
 supabase functions deploy sitemap          --no-verify-jwt   # public XML
 supabase functions deploy admin-rotate-code --no-verify-jwt  # cron; gates on service_role header
 # default verification is fine for these (anon key passes; own-auth inside):
 supabase functions deploy create-order
 supabase functions deploy payos-create-link
-supabase functions deploy ghn-sync-status
-supabase functions deploy ghn-order-status
+supabase functions deploy goship-locations
+supabase functions deploy goship-shipping-fee
+supabase functions deploy goship-sync-status
+supabase functions deploy goship-order-status
 supabase functions deploy import-books
 supabase functions deploy upload-media
 supabase functions deploy moderate-review
@@ -170,6 +180,18 @@ supabase functions deploy chat
 
 Point PayOS's webhook URL at `<project>/functions/v1/payos-webhook`, and set the
 Netlify `/sitemap.xml` redirect/proxy to `<project>/functions/v1/sitemap`.
+
+Register the GoShip status webhook in the portal (Kết nối API → Goship API
+Webhooks → Add subscription), pointing at:
+
+```
+<project>/functions/v1/goship-webhook
+```
+
+There is no separate secret to enter: GoShip signs each push with HMAC-SHA256
+keyed on `GOSHIP_CLIENT_SECRET`. It retries a failed push after 3 minutes and
+gives up after 3 attempts, which is what `goship-sync-status` (the admin
+panel's "Đồng bộ vận chuyển" button) exists to catch.
 
 ### Admin user
 
@@ -190,7 +212,8 @@ update public.users
 ## Environment variables
 
 Function secrets (set with `supabase secrets set ...`), carried over from the old
-`.env`: `GHN_API_TOKEN`, `GHN_SHOP_ID`, `GHN_BASE_URL`, `PAYOS_CLIENT_ID`,
+`.env`: `GOSHIP_USERNAME`, `GOSHIP_PASSWORD`, `GOSHIP_CLIENT_ID`,
+`GOSHIP_CLIENT_SECRET`, `GOSHIP_SENDER_*`, `PAYOS_CLIENT_ID`,
 `PAYOS_API_KEY`, `PAYOS_CHECKSUM_KEY`, `PAYOS_BASE_URL`, `PAYOS_RETURN_URL`,
 `PAYOS_CANCEL_URL`, `GROQ_API_KEY`, `GROQ_API_KEY_MOD`, and the SMTP set used by
 `_shared/email.ts`: `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_SERVER`, `MAIL_PORT`,
@@ -198,6 +221,7 @@ Function secrets (set with `supabase secrets set ...`), carried over from the ol
 
 Frontend gains `REACT_APP_SUPABASE_URL` and `REACT_APP_SUPABASE_ANON_KEY`.
 
-> ⚠️ The committed `.env.example` contains **real-looking secrets** (GHN token,
-> Groq keys, mail app password, Zalo token, admin password). Rotate these before
-> or during cutover — they should never have been committed.
+> ⚠️ The committed `.env.example` contains **real-looking secrets** (Groq keys,
+> mail app password, Zalo token, admin password). Rotate these — they should
+> never have been committed. The GHN token that used to sit here went with the
+> Viettel Post switch, but it was public for as long as this file was.

@@ -70,3 +70,10 @@ bookstore-backend/test_*.py
 # Frontend build artifacts
 bookstore-ui/build/
 bookstore-ui/npm_start.log
+
+# Supabase CLI local state (created by `supabase start`)
+supabase/.branches/
+supabase/.temp/
+
+# Netlify CLI local state
+.netlify/

@@ -33,9 +33,6 @@ echo "🔧 Building frontend image..."
 source .env 2>/dev/null || true
 docker build \
   --build-arg REACT_APP_API_URL="${REACT_APP_API_URL:-http://localhost:8000}" \
-  --build-arg REACT_APP_GHN_API_TOKEN="${REACT_APP_GHN_API_TOKEN}" \
-  --build-arg REACT_APP_GHN_SHOP_ID="${REACT_APP_GHN_SHOP_ID}" \
-  --build-arg REACT_APP_GHN_API_BASE_URL="${REACT_APP_GHN_API_BASE_URL:-https://online-gateway.ghn.vn/shiip/public-api}" \
   -t $DOCKER_USERNAME/bookstore-frontend:$VERSION \
   ./bookstore-ui
 docker tag $DOCKER_USERNAME/bookstore-frontend:$VERSION $DOCKER_USERNAME/bookstore-frontend:latest
