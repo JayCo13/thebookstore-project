@@ -102,6 +102,7 @@ async function linkForPendingOrder(req: Request, supabase: Client, code: number)
     buyerName: (body.shipping_full_name as string | null) ?? null,
     buyerEmail,
     buyerPhone: (body.shipping_phone_number as string | null) ?? null,
+    publicToken: pending.public_token as string | null,
   });
 
   if (!data || !data.checkoutUrl) {
@@ -176,6 +177,7 @@ async function linkForExistingOrder(req: Request, supabase: Client, orderId: num
     buyerName: order.shipping_full_name as string | null,
     buyerEmail,
     buyerPhone: order.shipping_phone_number as string | null,
+    publicToken: order.public_token as string | null,
   });
 
   if (!data || !data.checkoutUrl) {

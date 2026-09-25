@@ -73,6 +73,9 @@ interface CreateLinkInput {
   buyerName?: string | null;
   buyerEmail?: string | null;
   buyerPhone?: string | null;
+  /** orders.public_token — appended to the return URL so the customer can read
+   *  their own order when they come back with no session. */
+  publicToken?: string | null;
 }
 
 // Ported from PayOSService.create_payment_link. Returns PayOS `data`
@@ -83,8 +86,17 @@ export async function createPaymentLink(input: CreateLinkInput): Promise<Record<
     return null;
   }
   const base = (Deno.env.get("PAYOS_BASE_URL") ?? "https://api-merchant.payos.vn").replace(/\/$/, "");
-  const returnUrl = Deno.env.get("PAYOS_RETURN_URL") ?? "";
   const cancelUrl = Deno.env.get("PAYOS_CANCEL_URL") ?? "";
+
+  // The customer returns from PayOS with no session, so the return URL has to
+  // carry the secret that lets them read their own order — order ids and
+  // payos codes are sequential and were enumerable. PayOS appends its own
+  // params (code, id, status, orderCode), so join correctly rather than
+  // assuming there is no query string already.
+  const baseReturn = Deno.env.get("PAYOS_RETURN_URL") ?? "";
+  const returnUrl = input.publicToken
+    ? `${baseReturn}${baseReturn.includes("?") ? "&" : "?"}token=${encodeURIComponent(input.publicToken)}`
+    : baseReturn;
 
   const payload: Record<string, unknown> = {
     orderCode: Math.trunc(input.orderCode),

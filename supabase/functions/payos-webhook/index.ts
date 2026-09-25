@@ -171,6 +171,9 @@ async function materialisePendingOrder(
 
   const inserted = await insertOrder(supabase, orderBody, priced, appUserId, {
     overrides: {
+      // Keep the token the customer already has: the payment's return URL was
+      // built with it before this order existed.
+      public_token: pending.public_token,
       payment_status: "Paid",
       paid_at: new Date().toISOString(),
       status: stockWarnings.length ? "Cần kiểm tra" : "Processing",

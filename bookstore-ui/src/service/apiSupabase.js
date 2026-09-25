@@ -374,12 +374,19 @@ export const createPayOSLink = (ref) =>
 // After PayOS redirects back, the only handle we have is the orderCode. The
 // order is created by the webhook, so it may not exist for a second or two —
 // callers poll this and treat null as "not confirmed yet".
-export const getOrderByPayosCode = async (code) => {
-  const { data, error } = await supabase
-    .from('orders').select(ORDER_SELECT).eq('payos_order_code', code).maybeSingle();
-  if (error) throw error;
-  return data;
-};
+/**
+ * Read one order with the unguessable token issued when it was placed.
+ *
+ * This is the ONLY way an unauthenticated visitor can read an order. Reading by
+ * order_id or payos_order_code used to work through PostgREST, but both are
+ * sequential: with the anon key that ships in this bundle, `GET /rest/v1/orders`
+ * returned every guest order in the table. The anonymous read policy is gone
+ * and this function replaces it.
+ *
+ * Returns { order } when it exists, or { pending: true } for a PayOS checkout
+ * whose webhook has not landed yet.
+ */
+export const lookupOrder = (token) => invoke('order-lookup', { token });
 
 // ============================================================================
 // Addresses (owner-scoped via RLS)
@@ -663,7 +670,7 @@ const apiService = {
   client: new HttpClient(),
   activateAccount, addToCart, addToWishlist, adminLogin, cancelOrder, changePassword,
   clearCart, clearWishlist, createAccountFromGuest, createAddress, createAuthor,
-  createBook, createCategory, createNotification, createOrder, createPayOSLink, getOrderByPayosCode,
+  createBook, createCategory, createNotification, createOrder, createPayOSLink, lookupOrder,
   createReview, createStationery, createStationeryReview, deleteAddress, deleteAuthor,
   deleteBook, deleteCategory, deleteNotification, deleteReview, deleteStationery,
   deleteUser, dismissNotification, forgotPassword, getActiveNotification, getAddress,

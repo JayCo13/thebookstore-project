@@ -600,7 +600,9 @@ export default function CheckoutPage() {
 
         showToast('Đặt hàng thành công!', 'success');
         clearCart();
-        navigate(`/checkout/success?orderId=${orderId}`);
+        // The token, never the id: the success page is reachable without a
+        // session, so the URL itself has to prove the visitor placed this order.
+        navigate(`/checkout/success?token=${result.public_token}`);
       } else {
         throw new Error('Invalid response from server');
       }

@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
         auth_id: authId,
         guest_email: appUserId ? null : (body.guest_email ?? null),
       })
-      .select("payos_order_code")
+      .select("payos_order_code, public_token")
       .single();
 
     if (pendingErr || !pending) {
@@ -81,7 +81,14 @@ Deno.serve(async (req) => {
 
     const payosOrderCode = Number(pending.payos_order_code);
     console.log(`PayOS checkout parked as pending order ${payosOrderCode} (amount ${amount})`);
-    return json(req, { pending: true, payos_order_code: payosOrderCode, amount }, 201);
+    // The token is what the customer will use to read their order later; the
+    // order itself does not exist yet, so it travels with the parked checkout.
+    return json(req, {
+      pending: true,
+      payos_order_code: payosOrderCode,
+      public_token: pending.public_token,
+      amount,
+    }, 201);
   }
 
   const inserted = await insertOrder(supabase, body, priced, appUserId);

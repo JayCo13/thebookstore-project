@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { getOrder, getOrderByPayosCode, createPayOSLink } from '../../../../service/api';
+import { lookupOrder, createPayOSLink } from '../../../../service/api';
 import { useCart } from '../../../../hooks/useCart';
 import { formatPrice } from '../../../../utils/currency';
 
@@ -15,13 +15,16 @@ export default function CheckoutSuccessPage() {
   const [error, setError] = useState(null);
   const [isNewAccount, setIsNewAccount] = useState(false);
 
-  // Two ways to land here:
-  //   `orderId`   — our own redirect after a COD order, which already exists.
-  //   `orderCode` — PayOS's return URL. This is the checkout code, NOT an order
-  //                 id: for a PayOS checkout the order is created by the webhook
-  //                 when payment confirms, so it may not exist yet (or ever, if
-  //                 the customer walked away from the payment page).
-  const orderIdParam = searchParams.get('orderId');
+  // `token` is the only thing that identifies an order here, and it is the only
+  // thing that may: this page is reachable with no session, so the URL itself
+  // has to prove the visitor placed the order. It used to accept `orderId` and
+  // `orderCode`, both sequential — anyone could walk them and read every guest
+  // order's name, phone and address.
+  //
+  // PayOS appends its own params (code, id, status, orderCode) to the return
+  // URL we gave it, so `orderCode` still arrives; it is used for the payment
+  // UI below, never to fetch anything.
+  const token = searchParams.get('token');
   const payosCode = searchParams.get('orderCode');
   const payosStatus = searchParams.get('status');
   const payosCancelled = searchParams.get('cancel') === 'true';
@@ -31,8 +34,8 @@ export default function CheckoutSuccessPage() {
     let abandonedEffect = false;
 
     const loadOrderDetails = async () => {
-      if (!orderIdParam && !payosCode) {
-        setError('No order ID provided');
+      if (!token) {
+        setError('Liên kết không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra lại đường dẫn trong email xác nhận.');
         setLoading(false);
         return;
       }
@@ -47,20 +50,21 @@ export default function CheckoutSuccessPage() {
       try {
         let orderData = null;
 
-        if (orderIdParam) {
-          orderData = await getOrder(orderIdParam);
-        } else if (!paymentAbandoned) {
-          // Paid: the webhook is creating the order right about now, and PayOS
-          // redirects the browser back at the same time. Poll for a bit rather
-          // than telling a paying customer their order does not exist.
+        // One lookup, one shape. `{ pending: true }` means the token is real but
+        // belongs to a PayOS checkout whose webhook has not landed — which is
+        // the normal state for the first second or two after paying, because
+        // PayOS redirects the browser at the same moment it notifies us.
+        const first = await lookupOrder(token);
+        orderData = first?.order ?? null;
+
+        if (!orderData && first?.pending && !paymentAbandoned) {
+          // Poll rather than tell a paying customer their order does not exist.
           for (let attempt = 0; attempt < 12 && !abandonedEffect; attempt++) {
-            orderData = await getOrderByPayosCode(payosCode);
-            if (orderData) break;
             await new Promise((resolve) => setTimeout(resolve, 2000));
+            if (abandonedEffect) return;
+            const again = await lookupOrder(token);
+            if (again?.order) { orderData = again.order; break; }
           }
-        } else {
-          // Cancelled payment: nothing was created, and nothing will be.
-          orderData = await getOrderByPayosCode(payosCode);
         }
 
         if (abandonedEffect) return;
@@ -90,7 +94,7 @@ export default function CheckoutSuccessPage() {
     loadOrderDetails();
     return () => { abandonedEffect = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderIdParam, payosCode, paymentAbandoned]);
+  }, [token, paymentAbandoned]);
 
 
 
