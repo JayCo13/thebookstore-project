@@ -96,24 +96,34 @@ export async function sendOrderConfirmationEmail(d: OrderEmailData): Promise<boo
     .join("");
   const grandTotal = d.totalAmount + d.shippingFee;
 
-  // Carrier + tracking. A GoShip shipment exists before the carrier has issued a
-  // waybill, so right after checkout there is genuinely nothing to track yet —
-  // say that plainly instead of rendering a button that goes nowhere. The link
-  // block also needs the url, not just the code: GoShip supplies the tracking
-  // page per carrier and it arrives with the waybill, not before it.
-  const trackable = Boolean(d.trackingCode && d.trackingUrl);
-  const shippingBlock = trackable
+  // Carrier + tracking.
+  //
+  // The waybill and the tracking page arrive separately: GoShip's create
+  // response carries `tracking_number` but NOT `tracking_url` — that field only
+  // exists on the list endpoint. Requiring both meant a customer whose waybill
+  // had already been issued was still told "we will send it later", which is
+  // both wrong and the thing they most want to see.
+  //
+  // So the code alone is enough to show the block; the button appears only when
+  // there is somewhere to send them. The "nothing yet" wording is kept for the
+  // genuine case, where the carrier has not issued a number at all.
+  const shippingBlock = d.trackingCode
     ? `<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f8ff;border:1px solid #cfe4ee;border-radius:6px;margin:20px 0;">
       <tr><td style="padding:20px;">
         <p style="margin:0 0 6px;color:#555;">Đơn vị vận chuyển: <strong>${carrierOf(d)}</strong></p>
         <p style="margin:0 0 16px;color:#555;">Mã vận đơn: <strong style="font-family:monospace;font-size:16px;letter-spacing:1px;">${d.trackingCode}</strong></p>
-        <a href="${d.trackingUrl}" target="_blank"
-           style="display:inline-block;background:#008080;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:bold;">
-          Theo dõi đơn hàng
-        </a>
-        <p style="margin:14px 0 0;color:#888;font-size:12px;">
-          Hoặc mở liên kết: <a href="${d.trackingUrl}" style="color:#008080;">${d.trackingUrl}</a>
-        </p>
+        ${d.trackingUrl
+          ? `<a href="${d.trackingUrl}" target="_blank"
+               style="display:inline-block;background:#008080;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:bold;">
+              Theo dõi đơn hàng
+            </a>
+            <p style="margin:14px 0 0;color:#888;font-size:12px;">
+              Hoặc mở liên kết: <a href="${d.trackingUrl}" style="color:#008080;">${d.trackingUrl}</a>
+            </p>`
+          : `<p style="margin:0;color:#555;font-size:13px;">
+              Bạn có thể tra cứu mã vận đơn này trên website của ${carrierOf(d)}.
+              Chúng tôi sẽ gửi liên kết theo dõi ngay khi có.
+            </p>`}
       </td></tr>
     </table>`
     : `<table width="100%" cellpadding="0" cellspacing="0" style="background:#fffbe6;border:1px solid #ffe08a;border-radius:6px;margin:20px 0;">

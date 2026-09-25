@@ -9,7 +9,7 @@
 // `forceCodZero` is the money-correctness lever: GoShip's `cod` is what the
 // courier collects on delivery. For prepaid (PayOS) orders it MUST be 0.
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
-import { createShipment } from "./goship.ts";
+import { createShipment, findShipmentByOrder } from "./goship.ts";
 import {
   paymentLabel,
   sendNewOrderAdminEmail,
@@ -149,11 +149,26 @@ export async function fulfillOrder(
       shippingError = result.error;
       retryable = result.retryable;
 
+      // The booking response carries `tracking_number` but NOT `tracking_url` —
+      // that field only exists on the list endpoint. Without it the confirmation
+      // email cannot link anywhere, so read the shipment back once to pick it
+      // up. This costs the customer nothing: fulfilment runs after the response
+      // has already been sent.
+      let trackingUrl = result.trackingUrl;
+      if (shipmentId && !trackingUrl) {
+        const fresh = await findShipmentByOrder(supabase, orderId);
+        if (fresh) {
+          trackingUrl = fresh.trackingUrl ?? trackingUrl;
+          trackingCode = fresh.trackingNumber ?? trackingCode;
+        }
+      }
+
       await supabase.from("orders").update({
         ...(shipmentId ? { carrier_shipment_id: shipmentId } : {}),
-        // The waybill usually arrives later, by webhook; only write a real one.
-        ...(result.trackingNumber ? { tracking_code: result.trackingNumber } : {}),
-        ...(result.trackingUrl ? { tracking_url: result.trackingUrl } : {}),
+        // Only ever write a real waybill: GoShip reports "not issued yet" as the
+        // literal string "NULL", and the webhook fills it in later.
+        ...(trackingCode ? { tracking_code: trackingCode } : {}),
+        ...(trackingUrl ? { tracking_url: trackingUrl } : {}),
         ...(result.carrier ? { shipping_service_code: result.carrier } : {}),
         carrier: "GOSHIP",
         shipping_error: result.error,
@@ -161,9 +176,15 @@ export async function fulfillOrder(
       }).eq("order_id", orderId);
 
       if (shipmentId) {
+        // Mirror onto the row we already loaded — the email is built from it,
+        // and it was read before any of this was written.
         order.carrier_shipment_id = shipmentId;
-        if (result.trackingNumber) order.tracking_code = result.trackingNumber;
-        if (result.trackingUrl) order.tracking_url = result.trackingUrl;
+        if (trackingCode) order.tracking_code = trackingCode;
+        if (trackingUrl) order.tracking_url = trackingUrl;
+        // GoShip answers with the carrier's display name ("SPX Express"), which
+        // is what a customer should read; checkout only knew the short code
+        // ("shopee") when it wrote this column.
+        if (result.carrier) order.shipping_service_code = result.carrier;
       } else {
         console.error(
           `Order ${orderId} has no GoShip shipment: ${result.error}` +
