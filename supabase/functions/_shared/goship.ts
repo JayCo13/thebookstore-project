@@ -34,7 +34,7 @@
 //
 // Secrets: GOSHIP_BASE_URL, GOSHIP_USERNAME, GOSHIP_PASSWORD, GOSHIP_CLIENT_ID,
 //          GOSHIP_CLIENT_SECRET (or GOSHIP_TOKEN to pin one from the portal),
-//          GOSHIP_SENDER_* (pickup address).
+//          GOSHIP_SENDER_* (pickup address), GOSHIP_CARRIERS (allowlist).
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 
 const RAW_BASE = (Deno.env.get("GOSHIP_BASE_URL") ?? "https://api.goship.io/api/v2").replace(/\/$/, "");
@@ -52,6 +52,18 @@ const CLIENT_SECRET = Deno.env.get("GOSHIP_CLIENT_SECRET") ?? "";
  * A pinned token never refreshes, so drop this once login works.
  */
 const STATIC_TOKEN = Deno.env.get("GOSHIP_TOKEN") ?? "";
+
+/**
+ * Carriers the shop is willing to ship with, as GoShip short names
+ * ("shopee,vnp,jnt"). Empty means "whatever GoShip offers".
+ *
+ * This is a business decision, not a technical one — which is why it is a
+ * secret rather than a constant. Narrowing it is how a carrier whose service
+ * has gone bad gets dropped without touching code, which is exactly what this
+ * shop could not do before and what cost it two migrations.
+ */
+const CARRIER_ALLOWLIST = (Deno.env.get("GOSHIP_CARRIERS") ?? "")
+  .split(",").map((c) => c.trim().toLowerCase()).filter(Boolean);
 
 const TOKEN_ROW = "goship";
 
@@ -406,7 +418,7 @@ export async function getRates(params: RateParams, supabase?: SupabaseClient): P
   try {
     const data = await call("/rates", { method: "POST", body: payload, supabase });
     if (!Array.isArray(data)) return [];
-    return data
+    const all = data
       .filter((r): r is Record<string, unknown> => Boolean(r) && typeof r === "object")
       .map((r) => ({
         id: String(r.id ?? ""),
@@ -418,6 +430,21 @@ export async function getRates(params: RateParams, supabase?: SupabaseClient): P
       }))
       .filter((r) => r.id)
       .sort((a, b) => a.fee - b.fee);
+
+    if (CARRIER_ALLOWLIST.length === 0) return all;
+
+    const allowed = all.filter((r) => CARRIER_ALLOWLIST.includes(r.carrierCode.toLowerCase()));
+    if (allowed.length > 0) return allowed;
+
+    // No preferred carrier serves this route. Returning nothing would mean the
+    // customer simply cannot order — a worse outcome than shipping with a
+    // carrier that is merely not preferred — so fall back to the full list and
+    // log it loudly enough to notice if it stops being rare.
+    console.warn(
+      `GoShip: none of [${CARRIER_ALLOWLIST.join(", ")}] serves ` +
+      `${params.toCity}/${params.toDistrict}; falling back to [${all.map((r) => r.carrierCode).join(", ")}]`,
+    );
+    return all;
   } catch (e) {
     console.error("GoShip rates failed", e instanceof Error ? e.message : e);
     return [];

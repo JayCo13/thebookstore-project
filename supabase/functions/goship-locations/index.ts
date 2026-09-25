@@ -53,9 +53,13 @@ Deno.serve(async (req) => {
         return json(req, { detail: 'type phải là "cities", "districts" hoặc "wards"' }, 400);
     }
   } catch (e) {
-    // An empty dropdown is a dead checkout, so say what went wrong rather than
-    // letting the page render a silently empty select.
-    console.error("goship-locations failed", e);
-    return json(req, { detail: "Không tải được danh sách địa chỉ", places: [] }, 502);
+    // An empty dropdown is a dead checkout. Surface GoShip's own message rather
+    // than a generic one: "Thông tin đăng nhập không chính xác" tells an admin
+    // exactly what to fix, while "could not load addresses" sends them to the
+    // logs — which, on a hosted project, they may not be able to read. GoShip's
+    // errors describe the request, never the credentials, so this leaks nothing.
+    const reason = e instanceof Error ? e.message : String(e);
+    console.error("goship-locations failed:", reason);
+    return json(req, { detail: `Không tải được danh sách địa chỉ: ${reason}`, places: [] }, 502);
   }
 });
