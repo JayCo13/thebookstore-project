@@ -21,38 +21,78 @@ import { formatPrice, parsePrice } from '../utils/currency';
 import { getBook, getShippingLocations, getShippingQuote, getStationeryItem } from './api';
 
 /**
+ * Session cache for the address book.
+ *
+ * The lists are static and small, and the backend already caches them — this
+ * removes the remaining round trip, so going back to checkout or re-picking a
+ * province is instant rather than a visible pause. sessionStorage, not
+ * localStorage: one shopping session is the right lifetime, and it goes away on
+ * its own if GoShip ever renumbers anything.
+ *
+ * Every access is wrapped: a private window or blocked site data makes these
+ * throw, and a broken cache must never break checkout.
+ */
+const cacheGet = (key) => {
+  try {
+    const raw = sessionStorage.getItem(`goship:${key}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const cacheSet = (key, value) => {
+  try {
+    sessionStorage.setItem(`goship:${key}`, JSON.stringify(value));
+  } catch {
+    /* quota or private mode — the list still works, it just isn't cached */
+  }
+};
+
+const fetchPlaces = async (key, params, shape) => {
+  const hit = cacheGet(key);
+  if (hit && hit.length) return hit;
+  const { places } = await getShippingLocations(params);
+  const mapped = (places || []).map(shape);
+  if (mapped.length) cacheSet(key, mapped);
+  return mapped;
+};
+
+/**
  * Province / city list.
  * @returns {Promise<Array>} [{ id, name, code }]
  */
-export const getProvinces = async () => {
-  const { places } = await getShippingLocations({ type: 'cities' });
-  return (places || []).map((p) => ({ id: p.id, name: p.name, code: p.id }));
-};
+export const getProvinces = async () =>
+  fetchPlaces('cities', { type: 'cities' }, (p) => ({ id: p.id, name: p.name, code: p.id }));
 
 /**
  * Districts of a city.
  * @param {string} cityId - GoShip city code, e.g. "700000"
  */
-export const getDistricts = async (cityId) => {
-  const { places } = await getShippingLocations({ type: 'districts', parent: String(cityId) });
-  return (places || []).map((p) => ({ id: p.id, name: p.name, code: p.id, provinceId: String(cityId) }));
-};
+export const getDistricts = async (cityId) =>
+  fetchPlaces(
+    `districts:${cityId}`,
+    { type: 'districts', parent: String(cityId) },
+    (p) => ({ id: p.id, name: p.name, code: p.id, provinceId: String(cityId) }),
+  );
 
 /**
  * Wards of a district.
  * @param {string} districtId - GoShip district code, e.g. "701200"
  */
-export const getWards = async (districtId) => {
-  const { places } = await getShippingLocations({ type: 'wards', parent: String(districtId) });
-  return (places || []).map((p) => ({
-    id: p.id,
-    name: p.name,
-    // `code` is what the order row stores. GoShip ward ids are numeric while
-    // city and district codes are strings, so everything is kept as text.
-    code: String(p.id),
-    districtId: String(districtId),
-  }));
-};
+export const getWards = async (districtId) =>
+  fetchPlaces(
+    `wards:${districtId}`,
+    { type: 'wards', parent: String(districtId) },
+    (p) => ({
+      id: p.id,
+      name: p.name,
+      // `code` is what the order row stores. GoShip ward ids are numeric while
+      // city and district codes are strings, so everything is kept as text.
+      code: String(p.id),
+      districtId: String(districtId),
+    }),
+  );
 
 /**
  * Quote a destination + parcel.

@@ -288,16 +288,85 @@ function toPlaces(rows: unknown): GoshipPlace[] {
     .filter((p) => p.id && p.name);
 }
 
+// The address book is effectively static — administrative units change a few
+// times a year — but checkout asked GoShip for it on every page load. Measured
+// on production: 0.9-3.1s for the province list, and one district lookup took
+// 43 SECONDS. That is the first thing a customer waits on.
+//
+// So it is cached, and the cache is also a safety net: when GoShip is
+// unreachable a stale list is served instead of an empty dropdown, because an
+// empty dropdown means nobody can order at all.
+const LOCATION_TTL_MS = 7 * 86_400_000;
+
+/** Per-isolate memo, so a warm function does not even hit the database. */
+const memoPlaces = new Map<string, { places: GoshipPlace[]; at: number }>();
+
+async function cachedPlaces(
+  key: string,
+  path: string,
+  supabase?: SupabaseClient,
+): Promise<GoshipPlace[]> {
+  const now = Date.now();
+
+  const memo = memoPlaces.get(key);
+  if (memo && now - memo.at < LOCATION_TTL_MS) return memo.places;
+
+  let stale: GoshipPlace[] | null = null;
+  if (supabase) {
+    const { data: row } = await supabase
+      .from("goship_locations").select("places, fetched_at").eq("cache_key", key).maybeSingle();
+    if (row?.places) {
+      const places = row.places as GoshipPlace[];
+      const age = now - Date.parse(row.fetched_at as string);
+      if (age < LOCATION_TTL_MS) {
+        memoPlaces.set(key, { places, at: now - age });
+        return places;
+      }
+      stale = places; // keep it: better than nothing if the refresh fails
+    }
+  }
+
+  let places: GoshipPlace[];
+  try {
+    places = toPlaces(await call(path, { query: { size: 100 }, supabase }));
+  } catch (e) {
+    if (stale) {
+      console.warn(`GoShip: ${key} refresh failed, serving stale cache —`, e instanceof Error ? e.message : e);
+      return stale;
+    }
+    throw e;
+  }
+  if (places.length === 0) return stale ?? places;
+
+  memoPlaces.set(key, { places, at: now });
+  if (supabase) {
+    const { error } = await supabase.from("goship_locations").upsert({
+      cache_key: key, places, fetched_at: new Date(now).toISOString(),
+    });
+    // A failed cache write is not a failed lookup — we still have the answer.
+    if (error) console.error(`GoShip: could not cache ${key}`, error);
+  }
+  return places;
+}
+
 export async function getCities(supabase?: SupabaseClient): Promise<GoshipPlace[]> {
-  return toPlaces(await call("/cities", { query: { size: 100 }, supabase }));
+  return cachedPlaces("cities", "/cities", supabase);
 }
 
 export async function getDistricts(cityId: string, supabase?: SupabaseClient): Promise<GoshipPlace[]> {
-  return toPlaces(await call(`/cities/${encodeURIComponent(cityId)}/districts`, { query: { size: 100 }, supabase }));
+  return cachedPlaces(
+    `districts:${cityId}`,
+    `/cities/${encodeURIComponent(cityId)}/districts`,
+    supabase,
+  );
 }
 
 export async function getWards(districtId: string, supabase?: SupabaseClient): Promise<GoshipPlace[]> {
-  return toPlaces(await call(`/districts/${encodeURIComponent(districtId)}/wards`, { query: { size: 100 }, supabase }));
+  return cachedPlaces(
+    `wards:${districtId}`,
+    `/districts/${encodeURIComponent(districtId)}/wards`,
+    supabase,
+  );
 }
 
 // ── name lookup ─────────────────────────────────────────────────────────────

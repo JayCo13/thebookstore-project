@@ -191,10 +191,12 @@ export default function CheckoutPage() {
       // Skip shipping calculation - will use 0
       return;
     }
-    if (isLocationComplete() && cartItems.length > 0 && isConfigValid) {
+    // Quote as soon as the district is known — GoShip prices on city + district,
+    // so waiting for the ward just makes the customer watch a spinner.
+    if (selectedProvince && selectedDistrict && cartItems.length > 0 && isConfigValid) {
       calculateShipping(cartItems);
     }
-  }, [selectedProvince, selectedDistrict, selectedWard, cartItems, isLocationComplete, calculateShipping, isConfigValid, hasFreeShipItem]);
+  }, [selectedProvince, selectedDistrict, cartItems, calculateShipping, isConfigValid, hasFreeShipItem]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;

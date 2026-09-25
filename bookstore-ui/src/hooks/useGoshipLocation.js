@@ -139,14 +139,20 @@ export const useGoshipLocation = () => {
   }, [loadWards]);
 
   // Handle ward selection
+  // The quote depends on city + district only, so picking a ward must not throw
+  // away a price the customer can already see.
   const handleWardChange = useCallback((ward) => {
     setSelectedWard(ward);
-    setShippingFee(null);
   }, []);
 
-  // Calculate shipping fee for cart
+  // Calculate shipping fee for cart.
+  //
+  // Deliberately does NOT wait for the ward: GoShip prices on city + district,
+  // and the ward is only needed to book the shipment. Quoting a step earlier
+  // means the price is already on screen by the time the customer finishes
+  // picking an address, instead of them watching a spinner afterwards.
   const calculateShipping = useCallback(async (cartItems) => {
-    if (!selectedProvince || !selectedDistrict || !selectedWard || !cartItems || cartItems.length === 0) {
+    if (!selectedProvince || !selectedDistrict || !cartItems || cartItems.length === 0) {
       setShippingFee(null);
       return null;
     }
@@ -172,7 +178,7 @@ export const useGoshipLocation = () => {
     } finally {
       setCalculatingShipping(false);
     }
-  }, [selectedProvince, selectedDistrict, selectedWard]);
+  }, [selectedProvince, selectedDistrict]);
 
   // Reset all selections
   const resetSelections = useCallback(() => {
