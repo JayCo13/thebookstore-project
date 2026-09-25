@@ -14,7 +14,8 @@ import {
   getAddresses,
   createAddress,
   createOrder,
-  createPayOSLink
+  createPayOSLink,
+  getFreeShipFlags
 } from '../../../service/api';
 import { formatShippingFee } from '../../../service/goshipService';
 import { formatPrice, parsePrice, formatPriceForInput } from '../../../utils/currency';
@@ -183,7 +184,42 @@ export default function CheckoutPage() {
   };
 
   // Check if any cart item has free shipping
-  const hasFreeShipItem = cartItems.some(item => item.isFreeShip || item.is_free_ship);
+  // Free shipping is decided by the catalogue, not by whatever the cart happens
+  // to carry. The cart does not store `is_free_ship` at all — whether an item
+  // has it depends on which page added it — while the backend reads the column
+  // when it computes the amount to charge. Trusting the cart let this page quote
+  // 54k for a free-ship book and PayOS generate a 39k QR; the reverse would
+  // charge more than was shown. So it is resolved from the same source.
+  const [freeShipIds, setFreeShipIds] = useState(null); // null = chưa tra xong
+  const hasFreeShipItem = freeShipIds
+    ? cartItems.some((item) => freeShipIds.has(String(item.stationery_id ?? item.id)))
+    : false;
+  const freeShipResolving = freeShipIds === null && cartItems.length > 0;
+
+  useEffect(() => {
+    let cancelled = false;
+    if (cartItems.length === 0) { setFreeShipIds(new Set()); return; }
+    setFreeShipIds(null);
+    (async () => {
+      try {
+        // Books carry an author; stationery does not. Same split the order
+        // payload uses further down.
+        const bookIds = cartItems.filter((i) => !!i.author).map((i) => parseInt(i.id));
+        const stationeryIds = cartItems.filter((i) => !i.author)
+          .map((i) => parseInt(i.stationery_id ?? i.id));
+        const res = await getFreeShipFlags({ bookIds, stationeryIds });
+        if (cancelled) return;
+        setFreeShipIds(new Set([...res.bookIds, ...res.stationeryIds].map(String)));
+      } catch (err) {
+        console.error('Không tra được trạng thái miễn phí ship:', err);
+        // Fall back to charging shipping: quoting a fee the backend then waives
+        // shows the customer a higher number than they pay, which is the safe
+        // direction to be wrong in.
+        if (!cancelled) setFreeShipIds(new Set());
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [cartItems]);
 
   // An order must never be written while the fee is still being quoted. For COD
   // the fee IS the amount the courier collects, so submitting early would take
@@ -191,7 +227,7 @@ export default function CheckoutPage() {
   // shipping_fee of 0 that nothing later corrects. Free-ship baskets are exempt
   // because no quote is ever requested for them.
   const shippingFeePending = !hasFreeShipItem && (calculatingShipping || !shippingFee);
-  const submitBlocked = isSubmitting || isCreatingAccount || shippingFeePending;
+  const submitBlocked = isSubmitting || isCreatingAccount || shippingFeePending || freeShipResolving;
 
   // Calculate shipping fee when location is complete and cart items change (skip if free ship)
   useEffect(() => {
@@ -586,6 +622,22 @@ export default function CheckoutPage() {
       // is deliberately NOT cleared here — walk away from the payment page and
       // you still have your basket, because nothing was ordered.
       if (result?.pending && result?.payos_order_code) {
+        // Last line of defence on the amount. The server decides what PayOS
+        // will charge, from the catalogue; this page decides what to display.
+        // They are computed from the same data now, but a QR that charges a
+        // different number than the page showed is the kind of bug a customer
+        // discovers at the bank, so refuse rather than let it through silently.
+        const shown = getCartTotalRaw() + (hasFreeShipItem ? 0 : (shippingFee?.total || 0));
+        if (Number(result.amount) !== Math.round(shown)) {
+          console.error(
+            `Amount mismatch: page showed ${Math.round(shown)}, server will charge ${result.amount}`,
+          );
+          showToast(
+            `Tổng tiền vừa thay đổi (${formatPrice(result.amount)}). Vui lòng kiểm tra lại và đặt hàng lần nữa.`,
+            'error',
+          );
+          return;
+        }
         await goToPayOS({ payos_order_code: result.payos_order_code });
         return;
       }
@@ -1047,7 +1099,7 @@ export default function CheckoutPage() {
             >
               {isSubmitting || isCreatingAccount
                 ? 'Đang xử lý...'
-                : calculatingShipping
+                : (calculatingShipping || freeShipResolving)
                   ? 'Đang tính phí vận chuyển...'
                   : 'Hoàn tất đơn hàng'}
             </button>
@@ -1252,7 +1304,7 @@ export default function CheckoutPage() {
         >
           {isSubmitting || isCreatingAccount
             ? 'Đang xử lý...'
-            : calculatingShipping
+            : (calculatingShipping || freeShipResolving)
               ? 'Đang tính phí vận chuyển...'
               : 'Hoàn tất đơn hàng'}
         </button>

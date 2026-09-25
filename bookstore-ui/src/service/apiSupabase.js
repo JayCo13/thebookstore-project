@@ -388,6 +388,32 @@ export const createPayOSLink = (ref) =>
  */
 export const lookupOrder = (token) => invoke('order-lookup', { token });
 
+/**
+ * Which of these products ship free, straight from the catalogue.
+ *
+ * The cart does not carry `is_free_ship` — whether an item has it depends on
+ * which page put it there — but the backend decides the amount to charge by
+ * reading this column. Trusting the cart therefore let the page quote one total
+ * and PayOS charge another: a free-ship book showed 54k on screen and generated
+ * a 39k QR. The reverse is worse, charging more than was displayed.
+ *
+ * So checkout asks the same source the backend uses.
+ */
+export const getFreeShipFlags = async ({ bookIds = [], stationeryIds = [] }) => {
+  const [books, stationery] = await Promise.all([
+    bookIds.length
+      ? supabase.from('books').select('book_id').eq('is_free_ship', true).in('book_id', bookIds)
+      : Promise.resolve({ data: [] }),
+    stationeryIds.length
+      ? supabase.from('stationery').select('stationery_id').eq('is_free_ship', true).in('stationery_id', stationeryIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+  return {
+    bookIds: (books.data || []).map((r) => r.book_id),
+    stationeryIds: (stationery.data || []).map((r) => r.stationery_id),
+  };
+};
+
 // ============================================================================
 // Addresses (owner-scoped via RLS)
 // ============================================================================
@@ -670,7 +696,7 @@ const apiService = {
   client: new HttpClient(),
   activateAccount, addToCart, addToWishlist, adminLogin, cancelOrder, changePassword,
   clearCart, clearWishlist, createAccountFromGuest, createAddress, createAuthor,
-  createBook, createCategory, createNotification, createOrder, createPayOSLink, lookupOrder,
+  createBook, createCategory, createNotification, createOrder, createPayOSLink, lookupOrder, getFreeShipFlags,
   createReview, createStationery, createStationeryReview, deleteAddress, deleteAuthor,
   deleteBook, deleteCategory, deleteNotification, deleteReview, deleteStationery,
   deleteUser, dismissNotification, forgotPassword, getActiveNotification, getAddress,
