@@ -185,6 +185,14 @@ export default function CheckoutPage() {
   // Check if any cart item has free shipping
   const hasFreeShipItem = cartItems.some(item => item.isFreeShip || item.is_free_ship);
 
+  // An order must never be written while the fee is still being quoted. For COD
+  // the fee IS the amount the courier collects, so submitting early would take
+  // the wrong money from the customer; for every order it would record a
+  // shipping_fee of 0 that nothing later corrects. Free-ship baskets are exempt
+  // because no quote is ever requested for them.
+  const shippingFeePending = !hasFreeShipItem && (calculatingShipping || !shippingFee);
+  const submitBlocked = isSubmitting || isCreatingAccount || shippingFeePending;
+
   // Calculate shipping fee when location is complete and cart items change (skip if free ship)
   useEffect(() => {
     if (hasFreeShipItem) {
@@ -252,6 +260,17 @@ export default function CheckoutPage() {
         return;
       }
 
+      if (shippingFeePending) {
+        showToast(
+          calculatingShipping
+            ? 'Đang tính phí vận chuyển, vui lòng đợi giây lát'
+            : 'Chưa tính được phí vận chuyển. Vui lòng kiểm tra lại địa chỉ giao hàng',
+          'error',
+        );
+        return;
+      }
+
+
       // Catch a bad phone here, before the guest dialog — the carrier rejects
       // the shipping order over it and the customer would never find out.
       if (!isValidVnPhone(formData.phone)) {
@@ -286,6 +305,17 @@ export default function CheckoutPage() {
         showToast('Vui lòng chọn Tỉnh/Thành phố, Quận/Huyện, Xã/Phường cho địa chỉ giao hàng', 'error');
         return;
       }
+
+      if (shippingFeePending) {
+        showToast(
+          calculatingShipping
+            ? 'Đang tính phí vận chuyển, vui lòng đợi giây lát'
+            : 'Chưa tính được phí vận chuyển. Vui lòng kiểm tra lại địa chỉ giao hàng',
+          'error',
+        );
+        return;
+      }
+
 
       // Check if the shipping integration is usable
       if (!isConfigValid) {
@@ -615,6 +645,25 @@ export default function CheckoutPage() {
 
   return (
     <div className="container mx-auto px-4 pt-28 pb-16">
+      {/* Full-screen block while the order is being placed. Submitting is not
+          idempotent — a second click creates a second order and decrements
+          stock twice — so the overlay covers the whole viewport rather than
+          just greying the button, which leaves the rest of the page clickable
+          on mobile where the button may be scrolled out of view. */}
+      {(isSubmitting || isCreatingAccount) && (
+        <div
+          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="h-14 w-14 animate-spin rounded-full border-4 border-gray-200 border-t-[#008080]" />
+          <p className="mt-6 text-lg font-semibold text-gray-900">
+            {isCreatingAccount ? 'Đang tạo tài khoản...' : 'Đang tạo đơn hàng...'}
+          </p>
+          <p className="mt-2 text-sm text-gray-500">Vui lòng không đóng hoặc tải lại trang</p>
+        </div>
+      )}
+
       <h1 className="text-3xl font-bold mb-8 text-gray-900">Thanh Toán</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -992,9 +1041,13 @@ export default function CheckoutPage() {
             <button
               type="submit"
               className="hidden lg:block w-full bg-[#008080] hover:bg-[#006666] text-white py-3 rounded-md transition-colors font-medium text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isSubmitting || isCreatingAccount}
+              disabled={submitBlocked}
             >
-              {isSubmitting || isCreatingAccount ? 'Đang xử lý...' : 'Hoàn tất đơn hàng'}
+              {isSubmitting || isCreatingAccount
+                ? 'Đang xử lý...'
+                : calculatingShipping
+                  ? 'Đang tính phí vận chuyển...'
+                  : 'Hoàn tất đơn hàng'}
             </button>
           </form>
         </div>
@@ -1193,9 +1246,13 @@ export default function CheckoutPage() {
           type="submit"
           form="checkout-form"
           className="w-full bg-[#008080] hover:bg-[#006666] text-white py-4 px-8 rounded-lg transition-all font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-          disabled={isSubmitting || isCreatingAccount}
+          disabled={submitBlocked}
         >
-          {isSubmitting || isCreatingAccount ? 'Đang xử lý...' : 'Hoàn tất đơn hàng'}
+          {isSubmitting || isCreatingAccount
+            ? 'Đang xử lý...'
+            : calculatingShipping
+              ? 'Đang tính phí vận chuyển...'
+              : 'Hoàn tất đơn hàng'}
         </button>
       </div>
 

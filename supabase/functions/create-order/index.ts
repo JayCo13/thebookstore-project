@@ -88,15 +88,31 @@ Deno.serve(async (req) => {
   if (!inserted.ok) return json(req, { detail: inserted.detail }, inserted.status);
   const orderId = inserted.orderId;
 
-  // COD (and any non-PayOS): fulfil inline — GoShip booking + order email.
-  // Fire-and-forget semantics: a fulfilment hiccup must not fail the order.
-  try {
-    await fulfillOrder(supabase, orderId);
-  } catch (e) {
-    console.error(`Inline fulfilment failed for order ${orderId}`, e);
-  }
+  // COD (and any non-PayOS): book the shipment and send the emails AFTER the
+  // response. The customer was waiting on all of it — a GoShip call plus two
+  // Resend calls, several seconds of staring at "Đang xử lý..." — for work whose
+  // result they never see on this page: GoShip does not issue a waybill at
+  // booking time anyway (status 900), so there is nothing to show them.
+  //
+  // What they DO need is the order to exist, and it already does by this point:
+  // it is written, stock is decremented, and the id below is real. A fulfilment
+  // that fails now leaves `shipping_error` on the row exactly as before, which
+  // the admin list surfaces as "Chưa có vận đơn".
+  const fulfil = fulfillOrder(supabase, orderId).catch((e) => {
+    console.error(`Background fulfilment failed for order ${orderId}`, e);
+  });
 
-  // Return the full order row (refetched so tracking_code/paid fields are current).
+  // `waitUntil` keeps the isolate alive until the work finishes instead of it
+  // being killed when the response is sent. Await it where the runtime does not
+  // provide it, so a missing API degrades to the old slow-but-correct behaviour
+  // rather than silently dropping every shipment.
+  const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+  if (typeof runtime?.waitUntil === "function") runtime.waitUntil(fulfil);
+  else await fulfil;
+
+  // Return the order row. The shipment may still be being booked — that is the
+  // point — so tracking fields can be null here; the success page does not show
+  // them, and the admin list and the status webhook fill them in.
   const { data: finalOrder } = await supabase
     .from("orders").select("*").eq("order_id", orderId).single();
 
